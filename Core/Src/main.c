@@ -18,10 +18,13 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "string.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "string.h"
+#include "spi_flash.h"
+#include <stdio.h>
+
 typedef struct 
 {
   volatile uint8_t* buffer;
@@ -39,6 +42,7 @@ uint32_t avlMaxDMABufferUsage = 0;
 uint8_t gsvSentence[2048];
 #define READLOG_BLOCK_BUFFER_LENGHT  2048
 uint8_t taxBuffer[128];
+uint8_t flashBufferReceived[128];
 
 ////////////////////////
 
@@ -91,18 +95,23 @@ void rs232Ext2_InitializeRxDMA(void)// ham khoi tao lai DMA
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+SPI_HandleTypeDef hspi1;
+
+UART_HandleTypeDef huart1;
+DMA_HandleTypeDef hdma_usart1_rx;
 
 /* USER CODE BEGIN PV */
 uint8_t message1[] = "Hello from Task 1\n";
+uint8_t addr_spi_flash[3] = {0x00,0x00,0x00}; 
+uint8_t unique_id[8];
+uint8_t md_id[2];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -110,6 +119,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 /* USER CODE END PFP */
 
@@ -149,16 +159,27 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_USART1_UART_Init();
+  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+ // HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_9); 
+  //W25_CS_ENABLE();
+  //HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
+  //HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
+ // HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
   RingBufferDmaU8_initUSARTRx(&rs232Ext2RxDMARing, &huart1, gsvSentence, READLOG_BLOCK_BUFFER_LENGHT);
+ // printf("Hello \n\r");
+ taxBuffer[0] = '$';
+ int is_written = 0;
+ uint32_t address = 0x1230;
   while (1)
   {
-	 HAL_Delay(1000);
+	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
+	HAL_Delay(1000);
 	for (uint16_t i = 0; i < READLOG_BLOCK_BUFFER_LENGHT; i++) 
 	{
 		if (gsvSentence[i] == ')' & gsvSentence[i+1]==':' )
@@ -236,13 +257,28 @@ int main(void)
 		}
 		k++;
 		taxBuffer[k]='#';
+		
+		
+		HAL_UART_Transmit(&huart1, taxBuffer, sizeof(taxBuffer), 100);
+		HAL_UART_Transmit(&huart1, (uint8_t*)"\n", 1, 100);
+		
+		uint8_t addr_idx[3] = {address>>16,address>>8,address};
+		k++;
+		taxBuffer[k] = ';';
+		for(size_t idx = 0; idx < 4 ; idx++){
+			k++;
+			taxBuffer[k] = addr_idx[idx];
+		}
+		
 		for (j=0;j<110-k-1;j++)
 		{
 			taxBuffer[j+k+1]=0x00;
 		}
-		
-		HAL_UART_Transmit(&huart1, taxBuffer, sizeof(taxBuffer), 100);
-		HAL_UART_Transmit(&huart1, (uint8_t*)"\n", 1, 100);
+		W25_ReadJedecID();
+		W25_SectorErase(address);
+		W25_PageProgram(address, taxBuffer, 128);
+		is_written = 1;
+		address+= 128;
 		check = 0;
 		j = 1;
 		k=0;
@@ -252,9 +288,20 @@ int main(void)
 		rs232Ext2_InitializeRxDMA();
 	}
     /* USER CODE END WHILE */
-	//HAL_UART_Transmit(&huart1, message1, sizeof(message1), 100);
-		HAL_Delay(1000);
+
     /* USER CODE BEGIN 3 */
+	//if(is_written == 1){
+		//W25_ReadData(address-128, flashBufferReceived, 128);
+		//char spi_flash_data_intro[] = "Flash DATA received: ";
+		//HAL_UART_Transmit(&huart1, (uint8_t*) spi_flash_data_intro, strlen(spi_flash_data_intro), 1000);
+		//HAL_UART_Transmit(&huart1, flashBufferReceived, sizeof(flashBufferReceived), 1000);
+		//HAL_UART_Transmit(&huart1, (uint8_t*)"\n", 1, 1000);
+		//memset(flashBufferReceived, 0x00,128);
+		
+	//}
+	HAL_UART_Transmit(&huart1, message1, sizeof(message1), 100);
+	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
+	HAL_Delay(1000);
   }
   /* USER CODE END 3 */
 }
@@ -300,6 +347,46 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief SPI1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SPI1_Init(void)
+{
+
+  /* USER CODE BEGIN SPI1_Init 0 */
+
+  /* USER CODE END SPI1_Init 0 */
+
+  /* USER CODE BEGIN SPI1_Init 1 */
+
+  /* USER CODE END SPI1_Init 1 */
+  /* SPI1 parameter configuration*/
+  hspi1.Instance = SPI1;
+  hspi1.Init.Mode = SPI_MODE_MASTER;
+  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi1.Init.NSS = SPI_NSS_SOFT;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
+  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi1.Init.CRCPolynomial = 7;
+  hspi1.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
+  hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
+  if (HAL_SPI_Init(&hspi1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI1_Init 2 */
+
+  /* USER CODE END SPI1_Init 2 */
+
 }
 
 /**
@@ -360,11 +447,34 @@ static void MX_DMA_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
 /* USER CODE BEGIN MX_GPIO_Init_1 */
 /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
+
+  /*Configure GPIO pin : PC9 */
+  GPIO_InitStruct.Pin = GPIO_PIN_9;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PA15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_15;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -405,3 +515,23 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
+#if defined(__GNUC__)
+int _write(int fd, char * ptr, int len)
+{
+  HAL_UART_Transmit(&huart1, (uint8_t *) ptr, len, HAL_MAX_DELAY);
+  return len;
+}
+#elif defined (__ICCARM__)
+#include "LowLevelIOInterface.h"
+size_t __write(int handle, const unsigned char * buffer, size_t size)
+{
+  HAL_UART_Transmit(&huart1, (uint8_t *) buffer, size, HAL_MAX_DELAY);
+  return size;
+}
+#elif defined (__CC_ARM)
+int fputc(int ch, FILE *f)
+{
+    HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+    return ch;
+}
+#endif
