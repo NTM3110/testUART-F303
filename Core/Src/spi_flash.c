@@ -11,7 +11,7 @@ uint8_t W25_ReadStatusReg1(void) {
   uint8_t cmd = W25_CMD_READ_STATUS_REG_1;
   uint8_t status_reg1;
   int retval;
- // W25_CS_ENABLE(); // Drive Winbond chip select, /CS low
+  W25_CS_ENABLE(); // Drive Winbond chip select, /CS low
   //retval = HAL_SPI_Transmit(&hspi1, &cmd , sizeof(cmd), TIMEOUT); // Send Read Status Reg 1 command
   if(retval == HAL_OK)
     retval = HAL_SPI_Receive(&hspi1, &status_reg1, sizeof(status_reg1), TIMEOUT);

@@ -175,7 +175,9 @@ int main(void)
  // printf("Hello \n\r");
  taxBuffer[0] = '$';
  int is_written = 0;
- uint32_t address = 0x1230;
+ uint32_t address = 0x12B0;
+ uint32_t current_address = address;
+ int count_save = 0;
   while (1)
   {
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
@@ -263,11 +265,15 @@ int main(void)
 		HAL_UART_Transmit(&huart1, (uint8_t*)"\n", 1, 100);
 		
 		uint8_t addr_idx[3] = {address>>16,address>>8,address};
+		char addr_out[10];
+		sprintf(addr_out, "%08x", address);
+		HAL_UART_Transmit(&huart1, (uint8_t*) addr_out, 8, 1000);
+		HAL_UART_Transmit(&huart1, (uint8_t*)"\r", 1, 1000);
 		k++;
 		taxBuffer[k] = ';';
-		for(size_t idx = 0; idx < 4 ; idx++){
+		for(size_t idx = 6; idx > 0 ; idx--){
 			k++;
-			taxBuffer[k] = addr_idx[idx];
+			taxBuffer[k] = addr_out[8 - idx];
 		}
 		
 		for (j=0;j<110-k-1;j++)
@@ -275,9 +281,13 @@ int main(void)
 			taxBuffer[j+k+1]=0x00;
 		}
 		W25_ReadJedecID();
-		W25_SectorErase(address);
+		if (count_save == 0)
+			W25_SectorErase(address);
 		W25_PageProgram(address, taxBuffer, 128);
+		//memset(flashBufferReceived, 0x00,128);
 		is_written = 1;
+		count_save++;
+		current_address = address;
 		address+= 128;
 		check = 0;
 		j = 1;
@@ -291,14 +301,30 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	//if(is_written == 1){
-		//W25_ReadData(address-128, flashBufferReceived, 128);
+		//W25_ReadData(address, flashBufferReceived, 128);
 		//char spi_flash_data_intro[] = "Flash DATA received: ";
 		//HAL_UART_Transmit(&huart1, (uint8_t*) spi_flash_data_intro, strlen(spi_flash_data_intro), 1000);
 		//HAL_UART_Transmit(&huart1, flashBufferReceived, sizeof(flashBufferReceived), 1000);
 		//HAL_UART_Transmit(&huart1, (uint8_t*)"\n", 1, 1000);
+		//is_written = 0;
 		//memset(flashBufferReceived, 0x00,128);
 		
 	//}
+	W25_CS_ENABLE();
+	W25_CS_DISABLE();
+	W25_CS_ENABLE();
+	W25_CS_DISABLE();
+	W25_ReadJedecID();
+	W25_CS_ENABLE();
+	W25_CS_DISABLE();
+	W25_CS_ENABLE();
+	W25_CS_DISABLE();
+	HAL_Delay(1000);
+	W25_ReadData(current_address, flashBufferReceived, 128);
+	char spi_flash_data_intro[] = "Flash DATA received: ";
+	HAL_UART_Transmit(&huart1, (uint8_t*) spi_flash_data_intro, strlen(spi_flash_data_intro), 1000);
+	HAL_UART_Transmit(&huart1, flashBufferReceived, sizeof(flashBufferReceived), 1000);
+	HAL_UART_Transmit(&huart1, (uint8_t*)"\n", 1, 1000);
 	HAL_UART_Transmit(&huart1, message1, sizeof(message1), 100);
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
 	HAL_Delay(1000);
