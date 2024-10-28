@@ -31,6 +31,11 @@
 #define W25_STATUS1_SRP0            1<<7
 
 extern SPI_HandleTypeDef hspi1; // STM32 SPI instance
+extern uint16_t j,k,cnt,check;
+extern uint8_t gsvSentence[2048];
+extern uint8_t taxBuffer[128];
+extern uint8_t flashBufferReceived[128];
+
 #define TIMEOUT                 1000 // MS Timeout for HAL function calls
 #define PAGE_PROGRAM_TIMEOUT    1000 // MS Timeout for Program
 #define SECTOR_ERASE_TIMEOUT    1000 // MS Timeout for Sector Erase, Program, and Chip erase
@@ -47,7 +52,7 @@ extern SPI_HandleTypeDef hspi1; // STM32 SPI instance
 #define SPI2_NCS_GPIO_Port			GPIOA
 #define SPI2_NCS_Pin				GPIO_PIN_15
 
-
+int W25_ChipErase(void);
 uint8_t W25_ReadStatusReg1(void);
 
 int W25_DelayWhileBusy(uint32_t msTimeout);
@@ -57,7 +62,7 @@ int W25_ReadUniqueID(uint8_t *buf, int bufSize);
 int W25_ReadMD(uint8_t *buf, int bufSize);
 // Send Write Enable command, allowing writing to the device
 int W25_WriteEnable(void);
-
+void W25_Reset();
 // Erase a 4096 byte sector
 int W25_SectorErase(uint32_t address);
 

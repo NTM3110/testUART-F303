@@ -18,74 +18,25 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "string.h"
 #include "spi_flash.h"
+#include "RS232-UART1.h"
+#include "Controlling_LED.h"
+#include "GPS.h"
 #include <stdio.h>
 
-typedef struct 
-{
-  volatile uint8_t* buffer;
-  uint16_t size;
-  volatile uint8_t* tailPtr;
-  DMA_HandleTypeDef* dmaHandle;
-} RingBufferDmaU8_TypeDef;
-
-
-RingBufferDmaU8_TypeDef rs232Ext2RxDMARing;
-UART_HandleTypeDef huart1;
-DMA_HandleTypeDef hdma_usart1_rx;
-uint32_t avlMaxDMABufferUsage = 0;
-
-uint8_t gsvSentence[2048];
 #define READLOG_BLOCK_BUFFER_LENGHT  2048
-uint8_t taxBuffer[128];
+
+
 uint8_t flashBufferReceived[128];
+uint16_t j = 1,k=0,cnt=0,check=0;
 
 ////////////////////////
 
-void RingBufferDmaU8_initUSARTRx(RingBufferDmaU8_TypeDef* ring, UART_HandleTypeDef* husart, uint8_t* buffer, uint16_t size) // cai dat dma
-{
-  ring->buffer = buffer;
-  ring->size = size;
-  ring->tailPtr = buffer;
-  ring->dmaHandle = husart->hdmarx;
-  HAL_UART_Receive_DMA(husart, buffer, size);
-}
-
-
-#ifdef USING_CCMRAM
-__attribute__((section("ccmram")))
-#endif
-uint16_t RingBufferDmaU8_available(RingBufferDmaU8_TypeDef* ring) // kiem tra trang thai su dung dma
-{
-#ifdef __HAL_DMA_GET_COUNTER
-  uint32_t leftToTransfer = __HAL_DMA_GET_COUNTER(ring->dmaHandle);
-#else
-  uint32_t leftToTransfer = ring->dmaHandle->Instance->CNDTR;
-#endif
-  volatile uint8_t const* head = ring->buffer + ring->size - leftToTransfer;
-  volatile uint8_t const* tail = ring->tailPtr;
-  if (head >= tail) {
-    return head - tail;
-  } else {
-    return head - tail + ring->size;
-  }
-}
-
-void rs232Ext2_InitializeRxDMA(void)// ham khoi tao lai DMA
-{
-	HAL_StatusTypeDef ret = HAL_UART_Abort(&huart1);
-	if(ret != HAL_OK)
-	{
-		Error_Handler();			
-	}		
-	HAL_Delay(50);	//	50 is OK
-	//memset(gnssDmaRingBufferMemory, 0x20, sizeof(gnssDmaRingBufferMemory));	// insert buffer with space character	
-	RingBufferDmaU8_initUSARTRx(&rs232Ext2RxDMARing, &huart1, gsvSentence, READLOG_BLOCK_BUFFER_LENGHT);
-}
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -105,13 +56,18 @@ void rs232Ext2_InitializeRxDMA(void)// ham khoi tao lai DMA
 SPI_HandleTypeDef hspi1;
 
 UART_HandleTypeDef huart1;
+UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_usart1_rx;
+DMA_HandleTypeDef hdma_usart2_rx;
 
+osThreadId defaultTaskHandle;
+osThreadId ControllingLEDHandle;
+osThreadId UART1Handle;
+osThreadId SpiFlashHandle;
+osThreadId GPSHandle;
+osThreadId RFIDHandle;
+osThreadId GSMHandle;
 /* USER CODE BEGIN PV */
-uint8_t message1[] = "Hello from Task 1\n";
-uint8_t addr_spi_flash[3] = {0x00,0x00,0x00}; 
-uint8_t unique_id[8];
-uint8_t md_id[2];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -120,6 +76,15 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_SPI1_Init(void);
+static void MX_USART2_UART_Init(void);
+void StartDefaultTask(void const * argument);
+void StartControllingLED(void const * argument);
+void StartUART1(void const * argument);
+void StartSpiFlash(void const * argument);
+void StartGPS(void const * argument);
+void StartRFID(void const * argument);
+void StartGSM(void const * argument);
+
 /* USER CODE BEGIN PFP */
 /* USER CODE END PFP */
 
@@ -136,7 +101,6 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-	uint16_t j = 1,k=0,cnt=0,check=0;	
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -160,174 +124,72 @@ int main(void)
   MX_DMA_Init();
   MX_USART1_UART_Init();
   MX_SPI1_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
 
+  /* USER CODE BEGIN RTOS_MUTEX */
+  /* add mutexes, ... */
+  /* USER CODE END RTOS_MUTEX */
+
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* add semaphores, ... */
+  /* USER CODE END RTOS_SEMAPHORES */
+
+  /* USER CODE BEGIN RTOS_TIMERS */
+  /* start timers, add new ones, ... */
+  /* USER CODE END RTOS_TIMERS */
+
+  /* USER CODE BEGIN RTOS_QUEUES */
+  /* add queues, ... */
+  /* USER CODE END RTOS_QUEUES */
+
+  /* Create the thread(s) */
+  /* definition and creation of defaultTask */
+  // osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  // defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+
+  // /* definition and creation of ControllingLED */
+   //osThreadDef(ControllingLED, StartControllingLED, osPriorityIdle, 0, 128);
+   //ControllingLEDHandle = osThreadCreate(osThread(ControllingLED), NULL);
+
+  // /* definition and creation of UART1 */
+   //osThreadDef(UART1, StartUART1, osPriorityIdle, 0, 128);
+   //UART1Handle = osThreadCreate(osThread(UART1), NULL);
+
+  // /* definition and creation of SpiFlash */
+   //osThreadDef(SpiFlash, StartSpiFlash, osPriorityIdle, 0, 128);
+   //SpiFlashHandle = osThreadCreate(osThread(SpiFlash), NULL);
+
+  /* definition and creation of GPS */
+  osThreadDef(GPS, StartGPS, osPriorityIdle, 0, 128);
+  GPSHandle = osThreadCreate(osThread(GPS), NULL);
+
+  /* definition and creation of RFID */
+  // osThreadDef(RFID, StartRFID, osPriorityIdle, 0, 128);
+  // RFIDHandle = osThreadCreate(osThread(RFID), NULL);
+
+  // /* definition and creation of GSM */
+  // osThreadDef(GSM, StartGSM, osPriorityIdle, 0, 128);
+  // GSMHandle = osThreadCreate(osThread(GSM), NULL);
+
+  /* USER CODE BEGIN RTOS_THREADS */
+  /* add threads, ... */
+  /* USER CODE END RTOS_THREADS */
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
- // HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_9); 
-  //W25_CS_ENABLE();
-  //HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
-  //HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
- // HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
-  RingBufferDmaU8_initUSARTRx(&rs232Ext2RxDMARing, &huart1, gsvSentence, READLOG_BLOCK_BUFFER_LENGHT);
- // printf("Hello \n\r");
- taxBuffer[0] = '$';
- int is_written = 0;
- uint32_t address = 0x12B0;
- uint32_t current_address = address;
- int count_save = 0;
   while (1)
   {
-	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
-	HAL_Delay(1000);
-	for (uint16_t i = 0; i < READLOG_BLOCK_BUFFER_LENGHT; i++) 
-	{
-		if (gsvSentence[i] == ')' & gsvSentence[i+1]==':' )
-		{
-			check++;
-		}	
-	}
-	if (check > 7)
-	{	
-		check=0;
-		for (uint16_t i = 0; i < READLOG_BLOCK_BUFFER_LENGHT; i++) 
-		{	
-			if (gsvSentence[i] == ':' & gsvSentence[i-1] == 'E')
-			{
-					for (j=0; j < 10; j++)
-					{
-							if(gsvSentence[j+i+1] > 47 & gsvSentence[j+i+1] < 123)
-							{	
-								k++;
-								taxBuffer[k]=gsvSentence[j+i+1];
-								cnt++;
-							}	
-					}	
-							k++;
-							taxBuffer[k]=';';	
-							i=i+cnt;				
-			}
-			if (gsvSentence[i] == ':' & gsvSentence[i-1] == 'i')
-			{
-					for (j=0; j < 5; j++)
-					{
-							if((gsvSentence[j+i+1] > 47 & gsvSentence[j+i+1] < 58 ))
-							{	
-								k++;
-								taxBuffer[k]=gsvSentence[j+i+1];
-								cnt++;
-							}	
-					}	
-							k++;
-							taxBuffer[k]=';';	
-							i=READLOG_BLOCK_BUFFER_LENGHT;
-			}		
-		}
-		
-		for (uint16_t i = 0; i < READLOG_BLOCK_BUFFER_LENGHT; i++) 
-		{
-			if (gsvSentence[i] == ')' & gsvSentence[i+1]==':' )
-			{
-				check++;
-				if (check<=8)
-				{	
-					for (j=0; j < 30; j++)
-					{
-						if(gsvSentence[j+i+2]!=0x0A)	
-						{	
-							if(  (gsvSentence[j+i+2] > 47 & gsvSentence[j+i+2] < 58) ||(gsvSentence[j+i+2] == 44 ) )
-							{	
-								k++;
-								taxBuffer[k]=gsvSentence[j+i+2];
-								cnt++;
-							}	
-
-						}	
-						else
-						{
-							j=READLOG_BLOCK_BUFFER_LENGHT;
-							i=i+cnt;
-							cnt=0;
-							k++;
-							taxBuffer[k]=';';
-						}
-					 }	
-				}	
-			}
-		}
-		k++;
-		taxBuffer[k]='#';
-		
-		
-		HAL_UART_Transmit(&huart1, taxBuffer, sizeof(taxBuffer), 100);
-		HAL_UART_Transmit(&huart1, (uint8_t*)"\n", 1, 100);
-		
-		uint8_t addr_idx[3] = {address>>16,address>>8,address};
-		char addr_out[10];
-		sprintf(addr_out, "%08x", address);
-		HAL_UART_Transmit(&huart1, (uint8_t*) addr_out, 8, 1000);
-		HAL_UART_Transmit(&huart1, (uint8_t*)"\r", 1, 1000);
-		k++;
-		taxBuffer[k] = ';';
-		for(size_t idx = 6; idx > 0 ; idx--){
-			k++;
-			taxBuffer[k] = addr_out[8 - idx];
-		}
-		
-		for (j=0;j<110-k-1;j++)
-		{
-			taxBuffer[j+k+1]=0x00;
-		}
-		W25_ReadJedecID();
-		if (count_save == 0)
-			W25_SectorErase(address);
-		W25_PageProgram(address, taxBuffer, 128);
-		//memset(flashBufferReceived, 0x00,128);
-		is_written = 1;
-		count_save++;
-		current_address = address;
-		address+= 128;
-		check = 0;
-		j = 1;
-		k=0;
-		cnt=0;
-		memset(taxBuffer, 0x00, 128);
-		memset(gsvSentence, 0x00, 2048);
-		rs232Ext2_InitializeRxDMA();
-	}
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	//if(is_written == 1){
-		//W25_ReadData(address, flashBufferReceived, 128);
-		//char spi_flash_data_intro[] = "Flash DATA received: ";
-		//HAL_UART_Transmit(&huart1, (uint8_t*) spi_flash_data_intro, strlen(spi_flash_data_intro), 1000);
-		//HAL_UART_Transmit(&huart1, flashBufferReceived, sizeof(flashBufferReceived), 1000);
-		//HAL_UART_Transmit(&huart1, (uint8_t*)"\n", 1, 1000);
-		//is_written = 0;
-		//memset(flashBufferReceived, 0x00,128);
-		
-	//}
-	W25_CS_ENABLE();
-	W25_CS_DISABLE();
-	W25_CS_ENABLE();
-	W25_CS_DISABLE();
-	W25_ReadJedecID();
-	W25_CS_ENABLE();
-	W25_CS_DISABLE();
-	W25_CS_ENABLE();
-	W25_CS_DISABLE();
-	HAL_Delay(1000);
-	W25_ReadData(current_address, flashBufferReceived, 128);
-	char spi_flash_data_intro[] = "Flash DATA received: ";
-	HAL_UART_Transmit(&huart1, (uint8_t*) spi_flash_data_intro, strlen(spi_flash_data_intro), 1000);
-	HAL_UART_Transmit(&huart1, flashBufferReceived, sizeof(flashBufferReceived), 1000);
-	HAL_UART_Transmit(&huart1, (uint8_t*)"\n", 1, 1000);
-	HAL_UART_Transmit(&huart1, message1, sizeof(message1), 100);
-	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
-	HAL_Delay(1000);
   }
   /* USER CODE END 3 */
 }
@@ -367,8 +229,9 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1;
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_USART2;
   PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
+  PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
@@ -451,6 +314,41 @@ static void MX_USART1_UART_Init(void)
 }
 
 /**
+  * @brief USART2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART2_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART2_Init 0 */
+
+  /* USER CODE END USART2_Init 0 */
+
+  /* USER CODE BEGIN USART2_Init 1 */
+
+  /* USER CODE END USART2_Init 1 */
+  huart2.Instance = USART2;
+  huart2.Init.BaudRate = 9600;
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.StopBits = UART_STOPBITS_1;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Mode = UART_MODE_TX_RX;
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart2.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart2.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART2_Init 2 */
+
+  /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
   * Enable DMA controller clock
   */
 static void MX_DMA_Init(void)
@@ -461,8 +359,11 @@ static void MX_DMA_Init(void)
 
   /* DMA interrupt init */
   /* DMA1_Channel5_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel5_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(DMA1_Channel5_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel5_IRQn);
+  /* DMA1_Channel6_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel6_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel6_IRQn);
 
 }
 
@@ -483,16 +384,26 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
 
+  /*Configure GPIO pin : PC2 */
+  GPIO_InitStruct.Pin = GPIO_PIN_2;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
   /*Configure GPIO pin : PC9 */
   GPIO_InitStruct.Pin = GPIO_PIN_9;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PA15 */
@@ -509,6 +420,113 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
+
+/* USER CODE BEGIN Header_StartDefaultTask */
+/**
+  * @brief  Function implementing the defaultTask thread.
+  * @param  argument: Not used
+  * @retval None
+  */
+/* USER CODE END Header_StartDefaultTask */
+void StartDefaultTask(void const * argument)
+{
+  /* USER CODE BEGIN 5 */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_StartControllingLED */
+/**
+* @brief Function implementing the ControllingLED thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartControllingLED */
+/* USER CODE BEGIN Header_StartUART1 */
+/**
+* @brief Function implementing the UART1 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartUART1 */
+
+/* USER CODE BEGIN Header_StartSpiFlash */
+/**
+* @brief Function implementing the SpiFlash thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartSpiFlash */
+  /* USER CODE END StartSpiFlash */
+
+/* USER CODE BEGIN Header_StartGPS */
+/**
+* @brief Function implementing the GPS thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartGPS */
+
+/* USER CODE BEGIN Header_StartRFID */
+/**
+* @brief Function implementing the RFID thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartRFID */
+void StartRFID(void const * argument)
+{
+  /* USER CODE BEGIN StartRFID */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartRFID */
+}
+
+/* USER CODE BEGIN Header_StartGSM */
+/**
+* @brief Function implementing the GSM thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartGSM */
+void StartGSM(void const * argument)
+{
+  /* USER CODE BEGIN StartGSM */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartGSM */
+}
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM2 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM2) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.
@@ -541,23 +559,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-#if defined(__GNUC__)
-int _write(int fd, char * ptr, int len)
-{
-  HAL_UART_Transmit(&huart1, (uint8_t *) ptr, len, HAL_MAX_DELAY);
-  return len;
-}
-#elif defined (__ICCARM__)
-#include "LowLevelIOInterface.h"
-size_t __write(int handle, const unsigned char * buffer, size_t size)
-{
-  HAL_UART_Transmit(&huart1, (uint8_t *) buffer, size, HAL_MAX_DELAY);
-  return size;
-}
-#elif defined (__CC_ARM)
-int fputc(int ch, FILE *f)
-{
-    HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
-    return ch;
-}
-#endif

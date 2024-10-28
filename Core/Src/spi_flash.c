@@ -1,11 +1,24 @@
 #include "spi_flash.h"
 #include <stdio.h>
 #include "string.h"
-
+#include "cmsis_os.h"
+#include "RS232-UART1.h"
 
 extern UART_HandleTypeDef huart1;
 
-
+int W25_ChipErase(void)
+{
+  int retval;
+  uint8_t cmd = {W25_CMD_CHIP_ERASE};
+  //printf("+%s()\r\n",__func__);
+  W25_WriteEnable(); // Make sure we can write...
+  W25_CS_ENABLE(); // Drive Winbond chip select, /CS low
+  retval = HAL_SPI_Transmit(&hspi1, &cmd , sizeof(cmd ), TIMEOUT); // Send Chip Erase command
+  W25_CS_DISABLE();
+  //printf("%s: retval %d, ",__func__, retval);
+  W25_DelayWhileBusy(CHIP_ERASE_TIMEOUT);
+  return retval;
+} // W25_ChipErase()
 
 uint8_t W25_ReadStatusReg1(void) {
   uint8_t cmd = W25_CMD_READ_STATUS_REG_1;
@@ -41,11 +54,12 @@ int W25_DelayWhileBusy(uint32_t msTimeout)
   return retval;
 }
 void W25_Reset(){
-	uint8_t cmd[2] = {0x66, 0x99};
 	W25_CS_ENABLE();
-	HAL_SPI_Transmit(&hspi1, cmd, 2, 1000);
 	W25_CS_DISABLE();
-	W25_DelayWhileBusy(1000);
+	W25_CS_ENABLE();
+	W25_CS_DISABLE();
+	W25_CS_ENABLE();
+	W25_CS_DISABLE();
 }
 
 int W25_ReadJedecID() {
@@ -173,4 +187,67 @@ int W25_ReadData(uint32_t address, uint8_t *buf, int bufSize)
   //hexDump(buf,bufSize);
   return retval;
 } // W25_ReadData()
+
+void StartSpiFlash(void const * argument)
+{
+  /* USER CODE BEGIN StartSpiFlash */
+  uint32_t address = 0x1100;
+  uint32_t current_addr = address;
+  int is_erased = 0;
+  /* Infinite loop */
+  for(;;){
+	osDelay(1000);
+    if(check > 7){
+		uint8_t addr_idx[3] = {address>>16,address>>8,address};
+		char addr_out[10];
+		sprintf(addr_out, "%08x", address);
+		HAL_UART_Transmit(&huart1, (uint8_t*) addr_out, 8, 1000);
+		HAL_UART_Transmit(&huart1, (uint8_t*)"\r", 1, 1000);
+		k++;
+		taxBuffer[k] = ';';
+		for(size_t idx = 6; idx > 0 ; idx--){
+			k++;
+			taxBuffer[k] = addr_out[8 - idx];
+		}
+		
+		for (j=0;j<110-k-1;j++)
+		{
+			taxBuffer[j+k+1]=0x00;
+		}
+		char tax_buffer_intro[] = "Tax Buffer received: ";
+		HAL_UART_Transmit(&huart1, (uint8_t*) tax_buffer_intro, strlen(tax_buffer_intro), 1000);
+		HAL_UART_Transmit(&huart1, taxBuffer, sizeof(taxBuffer), 100);
+		HAL_UART_Transmit(&huart1, (uint8_t*)"\n", 1, 100);
+
+		W25_Reset();
+		if (is_erased == 0){
+			W25_SectorErase(address);
+			is_erased = 1;
+		}
+		W25_Reset();
+		W25_PageProgram(address, taxBuffer, 128);
+		current_addr = address;
+		address+=128;
+		HAL_Delay(1000);
+		memset(flashBufferReceived, 0x00,128);
+
+		check = 0;
+		j = 1;
+		k=0;
+		cnt=0;
+		memset(taxBuffer, 0x00, 128);
+		memset(gsvSentence, 0x00, 2048);
+		rs232Ext2_InitializeRxDMA();
+	}
+	W25_Reset();
+	W25_ReadJedecID();
+	W25_Reset();
+	W25_ReadData(current_addr, flashBufferReceived, 128);
+	char spi_flash_data_intro[] = "Flash DATA received: ";
+	HAL_UART_Transmit(&huart1, (uint8_t*) spi_flash_data_intro, strlen(spi_flash_data_intro), 1000);
+	HAL_UART_Transmit(&huart1, flashBufferReceived, sizeof(flashBufferReceived), 1000);
+	osDelay(1000);
+  }
+  /* USER CODE END StartSpiFlash */
+}
 
