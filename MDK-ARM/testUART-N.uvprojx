@@ -415,6 +415,16 @@
               <FilePath>..\Core\Src\RS232-UART1.c</FilePath>
             </File>
             <File>
+              <FileName>RS232-UART2.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Core\Inc\RS232-UART2.h</FilePath>
+            </File>
+            <File>
+              <FileName>RS232-UART2.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\RS232-UART2.c</FilePath>
+            </File>
+            <File>
               <FileName>Controlling_LED.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\Core\Inc\Controlling_LED.h</FilePath>
@@ -423,16 +433,6 @@
               <FileName>Controlling_LED.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Core\Src\Controlling_LED.c</FilePath>
-            </File>
-            <File>
-              <FileName>NMEA.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\Core\Inc\NMEA.h</FilePath>
-            </File>
-            <File>
-              <FileName>NMEA.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\NMEA.c</FilePath>
             </File>
             <File>
               <FileName>GPS.h</FileName>

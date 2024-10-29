@@ -4,6 +4,33 @@
 #include "main.h"
 
 
+// typedef struct {
+// 	int hour;
+// 	int min;
+// 	int sec;
+// }TIME;
+
+// typedef struct {
+// 	float latitude;
+// 	char NS;
+// 	float longitude;
+// 	char EW;
+// }LOCATION;
+
+// typedef struct {
+// 	int Day;
+// 	int Mon;
+// 	int Yr;
+// }DATE;
+
+// typedef struct {
+// 	TIME tim;
+// 	DATE date;
+// 	float speed;
+// 	float course;
+// 	int isValid;
+// 	LOCATION lcation;
+// }RMCSTRUCT;
 
 typedef struct 
 {
@@ -26,4 +53,5 @@ uint16_t RingBufferDmaU8_available(RingBufferDmaU8_TypeDef* ring); // kiem tra t
 void rs232Ext2_InitializeRxDMA(void);// ham khoi tao lai DMA
 
 void Bill_Decode();
+//int GPS_Decode();
 #endif

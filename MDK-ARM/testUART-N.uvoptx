@@ -262,8 +262,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\Core\Inc\Controlling_LED.h</PathWithFileName>
-      <FilenameWithoutPath>Controlling_LED.h</FilenameWithoutPath>
+      <PathWithFileName>..\Core\Inc\RS232-UART2.h</PathWithFileName>
+      <FilenameWithoutPath>RS232-UART2.h</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -274,8 +274,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\Core\Src\Controlling_LED.c</PathWithFileName>
-      <FilenameWithoutPath>Controlling_LED.c</FilenameWithoutPath>
+      <PathWithFileName>..\Core\Src\RS232-UART2.c</PathWithFileName>
+      <FilenameWithoutPath>RS232-UART2.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -286,8 +286,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\Core\Inc\NMEA.h</PathWithFileName>
-      <FilenameWithoutPath>NMEA.h</FilenameWithoutPath>
+      <PathWithFileName>..\Core\Inc\Controlling_LED.h</PathWithFileName>
+      <FilenameWithoutPath>Controlling_LED.h</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -298,8 +298,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\Core\Src\NMEA.c</PathWithFileName>
-      <FilenameWithoutPath>NMEA.c</FilenameWithoutPath>
+      <PathWithFileName>..\Core\Src\Controlling_LED.c</PathWithFileName>
+      <FilenameWithoutPath>Controlling_LED.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
