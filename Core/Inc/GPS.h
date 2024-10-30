@@ -1,4 +1,5 @@
 #include "RS232-UART1.h"
+#include "time.h"
 
 #define GPS_GPIO_Port		GPIOC	
 #define GPS_GPIO_Pin		GPIO_PIN_2
@@ -21,6 +22,7 @@ typedef struct {
 	int Day;
 	int Mon;
 	int Yr;
+	time_t epoch;
 }DATE;
 
 typedef struct {

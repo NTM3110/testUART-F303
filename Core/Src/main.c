@@ -148,32 +148,33 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  //osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+ // osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   //defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* definition and creation of ControllingLED */
   //osThreadDef(ControllingLED, StartControllingLED, osPriorityIdle, 0, 128);
-  //ControllingLEDHandle = osThreadCreate(osThread(ControllingLED), NULL);
+ // ControllingLEDHandle = osThreadCreate(osThread(ControllingLED), NULL);
 
-  /* definition and creation of UART1 */
- // osThreadDef(UART1, StartUART1, osPriorityIdle, 0, 1028);
-//  UART1Handle = osThreadCreate(osThread(UART1), NULL);
-
-  /* definition and creation of SpiFlash */
- // osThreadDef(SpiFlash, StartSpiFlash, osPriorityIdle, 0, 128);
-  //SpiFlashHandle = osThreadCreate(osThread(SpiFlash), NULL);
-
+  //* definition and creation of UART1 */
+  //osThreadDef(UART1, StartUART1, osPriorityIdle, 0, 128);
+ // UART1Handle = osThreadCreate(osThread(UART1), NULL);
   /* definition and creation of GPS */
   osThreadDef(GPS, StartGPS, osPriorityIdle, 0, 416);
   GPSHandle = osThreadCreate(osThread(GPS), NULL);
+  
+  /* definition and creation of SpiFlash */
+  osThreadDef(SpiFlash, StartSpiFlash, osPriorityIdle, 0, 512);
+  SpiFlashHandle = osThreadCreate(osThread(SpiFlash), NULL);
+
+
 
   /* definition and creation of RFID */
-  //osThreadDef(RFID, StartRFID, osPriorityIdle, 0, 128);
-  //RFIDHandle = osThreadCreate(osThread(RFID), NULL);
+ // osThreadDef(RFID, StartRFID, osPriorityIdle, 0, 128);
+ // RFIDHandle = osThreadCreate(osThread(RFID), NULL);
 
   /* definition and creation of GSM */
-  //osThreadDef(GSM, StartGSM, osPriorityIdle, 0, 128);
-  //GSMHandle = osThreadCreate(osThread(GSM), NULL);
+ // osThreadDef(GSM, StartGSM, osPriorityIdle, 0, 128);
+ // GSMHandle = osThreadCreate(osThread(GSM), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -447,6 +448,14 @@ void StartDefaultTask(void const * argument)
 * @retval None
 */
 /* USER CODE END Header_StartControllingLED */
+/* USER CODE BEGIN Header_StartUART1 */
+/**
+* @brief Function implementing the UART1 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartUART1 */
+
 
 /* USER CODE BEGIN Header_StartRFID */
 /**

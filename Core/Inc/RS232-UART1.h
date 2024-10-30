@@ -32,6 +32,11 @@
 // 	LOCATION lcation;
 // }RMCSTRUCT;
 
+typedef struct {
+    uint8_t data[128];
+} TAX_MAIL_STRUCT;
+
+
 typedef struct 
 {
   volatile uint8_t* buffer;
@@ -51,6 +56,9 @@ void RingBufferDmaU8_initUSARTRx(RingBufferDmaU8_TypeDef* ring, UART_HandleTypeD
 uint16_t RingBufferDmaU8_available(RingBufferDmaU8_TypeDef* ring); // kiem tra trang thai su dung dma
 
 void rs232Ext2_InitializeRxDMA(void);// ham khoi tao lai DMA
+void uart_transmit_string(UART_HandleTypeDef *huart, uint8_t *string);
+
+void sendTaxData(uint8_t *arrayData, uint32_t size);
 
 void Bill_Decode();
 //int GPS_Decode();

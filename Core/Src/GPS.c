@@ -6,12 +6,16 @@
 #include <stdio.h>
 #include "stdlib.h"
 #include "math.h"
+#include "system_management.h"
+#include <time.h>
 
 
 uint8_t rmc_str[128]= {0};
 RingBufferDmaU8_TypeDef GPSRxDMARing;
 
 uint8_t gpsSentence[GPS_STACK_SIZE];
+
+osMailQId RMC_MailQId; // Mail queue identifier
 
 RMCSTRUCT rmc;
 #define GMT 		000
@@ -45,9 +49,7 @@ void GPSUART_ReInitializeRxDMA(void)// ham khoi tao lai DMA
 	RingBufferDmaU8_initUSARTRx(&GPSRxDMARing, &huart2, gpsSentence, GPS_STACK_SIZE);
 }
 
-void uart_transmit_string(UART_HandleTypeDef *huart, uint8_t *string) {
-    HAL_UART_Transmit(huart, string, strlen((char *)string), 1000);
-}
+
 void send_rmc_data(UART_HandleTypeDef *huart) {
     uint8_t output_buffer[50];
 
@@ -56,6 +58,8 @@ void send_rmc_data(UART_HandleTypeDef *huart) {
 
     snprintf((char *)output_buffer, sizeof(output_buffer), "Date: %02d/%02d/%04d\r\n", rmc.date.Day, rmc.date.Mon, rmc.date.Yr);
     uart_transmit_string(huart, output_buffer);
+	
+	
 
     snprintf((char *)output_buffer, sizeof(output_buffer), "Latitude: %.4f %c\r\n", rmc.lcation.latitude, rmc.lcation.NS);
     uart_transmit_string(huart, output_buffer);
@@ -71,6 +75,24 @@ void send_rmc_data(UART_HandleTypeDef *huart) {
 
     snprintf((char *)output_buffer, sizeof(output_buffer), "Validity: %s\r\n", rmc.isValid ? "Valid" : "Invalid");
     uart_transmit_string(huart, output_buffer);
+}
+
+time_t convertToEpoch(int year, int month, int day, int hour, int min, int sec) {
+    struct tm timeinfo;
+
+    // Set timeinfo fields
+    timeinfo.tm_year = year - 1900; // Year since 1900
+    timeinfo.tm_mon = month - 1;    // Month (0-11, so subtract 1)
+    timeinfo.tm_mday = day;         // Day of the month
+    timeinfo.tm_hour = hour;        // Hour (0-23)
+    timeinfo.tm_min = min;          // Minute (0-59)
+    timeinfo.tm_sec = sec;          // Second (0-59)
+    timeinfo.tm_isdst = -1;         // Automatically determine Daylight Saving Time
+
+    // Convert to epoch time (seconds since 1970-01-01 00:00:00 UTC)
+    time_t epoch = mktime(&timeinfo);
+
+    return epoch;
 }
 
 void parse_rmc(uint8_t *rmc_sentence) {
@@ -121,6 +143,18 @@ void parse_rmc(uint8_t *rmc_sentence) {
         }
         ptr++;
     }
+	if(rmc.isValid == 1)
+		rmc.date.epoch = convertToEpoch(rmc.date.Yr, rmc.date.Mon, rmc.date.Day, rmc.tim.hour, rmc.tim.min, rmc.tim.sec);
+}
+
+
+void sendRMCDataToFlash(RMCSTRUCT *rmcData) {
+	HAL_UART_Transmit(&huart1, (uint8_t*) "SENDING RMC\n",  strlen("SENDING RMC\n") , HAL_MAX_DELAY);
+    RMCSTRUCT *mail = (RMCSTRUCT *)osMailAlloc(RMC_MailQId, osWaitForever); // Allocate memory for mail
+    if (mail != NULL) {
+        *mail = *rmcData; // Copy data into allocated memory
+        osMailPut(RMC_MailQId, mail); // Put message in queue
+    }
 }
 
 void getRMC(){
@@ -138,9 +172,6 @@ void getRMC(){
 				idx++;
 				i++;
 			}
-			//HAL_UART_Transmit(&huart1, rmc_str, 128,1000);
-			//copy_array(rmc_str, temp, idx);
-			//memset(temp, 0x00, 128);
 			length = idx;
 			idx = 0;
 			break;
@@ -153,6 +184,9 @@ void getRMC(){
 		parse_rmc(rmc_str);
 		send_rmc_data(&huart1);
 		isRMCExist = 0;
+		//if(rmc.isValid == 1){
+		sendRMCDataToFlash(&rmc);
+		//}
 	}
 	HAL_UART_Transmit(&huart1, rmc_str, 128,1000);
 	
@@ -162,36 +196,21 @@ void StartGPS(void const * argument)
   HAL_UART_Transmit(&huart1,(uint8_t*) "STARTING GPS", strlen("STARTING GPS"), 1000);
   /* USER CODE BEGIN StartGPS */
   RingBufferDmaU8_initUSARTRx(&GPSRxDMARing, &huart2, gpsSentence, GPS_STACK_SIZE);
-  //GPS_ENABLE();
   int countLine = 0;
   int i;
-  RMCSTRUCT * gnrmc;
   /* Infinite loop */
    uint32_t avlMaxDMABufferUsage = 0;
-	
+  osMailQDef(RMC_MailQ, 10, TAX_MAIL_STRUCT); 
+  RMC_MailQId = osMailCreate(osMailQ(RMC_MailQ), NULL);
   memset(gpsSentence, 0x00, GPS_STACK_SIZE);	
   while(1)
   {
-	uint32_t avlDmaAvailble = RingBufferDmaU8_available(&GPSRxDMARing);
-	uint32_t avlDmaUsagePercent = (avlDmaAvailble * 100) / GPS_STACK_SIZE;
-	if(avlMaxDMABufferUsage < avlDmaUsagePercent)
-	{
-		avlMaxDMABufferUsage = avlDmaUsagePercent;
-	}	
-	if (avlMaxDMABufferUsage > 60)// khoi tao lai dma sau khi dung het 60% bo nho 
-	{
-		//memset(gpsSentence, 0x00, GPS_STACK_SIZE);
-		//GPSUART_ReInitializeRxDMA();
-		avlMaxDMABufferUsage=0;
-		avlDmaUsagePercent=0;
-	}
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
 	osDelay(1000);
-	HAL_UART_Transmit(&huart1, (uint8_t *)"GPS Received:\n", strlen("GPS Received:\n"), 1000);
-	HAL_UART_Transmit(&huart1, gpsSentence, GPS_STACK_SIZE, 1000);	
-	HAL_UART_Transmit(&huart1, (uint8_t *)"\n", strlen("\n"), 1000);
+	//HAL_UART_Transmit(&huart1, (uint8_t *)"GPS Received:\n", strlen("GPS Received:\n"), 1000);
+	//HAL_UART_Transmit(&huart1, gpsSentence, GPS_STACK_SIZE, 1000);	
+	//HAL_UART_Transmit(&huart1, (uint8_t *)"\n", strlen("\n"), 1000);
 	getRMC();
-	//decodeRMC((char*) rmc_str, gnrmc_str);
 	HAL_UART_Transmit(&huart1, (uint8_t *)"Getting GPS \n", strlen("Getting GPS \n"), 1000);
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
 	osDelay(1000);

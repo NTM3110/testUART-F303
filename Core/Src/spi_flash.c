@@ -3,8 +3,14 @@
 #include "string.h"
 #include "cmsis_os.h"
 #include "RS232-UART1.h"
+#include "system_management.h"
+#include "gps.h"
 
 extern UART_HandleTypeDef huart1;
+uint32_t address = 0x1000;
+uint32_t current_addr;
+int is_erased = 0;
+uint8_t taxBufferDemo[128];
 
 int W25_ChipErase(void)
 {
@@ -188,35 +194,40 @@ int W25_ReadData(uint32_t address, uint8_t *buf, int bufSize)
   return retval;
 } // W25_ReadData()
 
-void StartSpiFlash(void const * argument)
-{
-  /* USER CODE BEGIN StartSpiFlash */
-  uint32_t address = 0x1100;
-  uint32_t current_addr = address;
-  int is_erased = 0;
-  /* Infinite loop */
-  for(;;){
-	osDelay(1000);
-    if(check > 7){
+
+void receiveTaxData(void) {
+//	uint8_t output_buffer[200];
+	int k = 0;
+    osEvent evt = osMailGet(tax_MailQId, 2000); // Wait for mail
+    if (evt.status == osEventMail) {
+        TAX_MAIL_STRUCT *receivedData = (TAX_MAIL_STRUCT *)evt.value.p;
+		uart_transmit_string(&huart1, (uint8_t*)"Received  TAX Data: \n");
+        // Process received data (e.g., display, log, or store data)
+		uart_transmit_string(&huart1, receivedData->data);
+		for(size_t i = 0; i < 128; i++){
+			taxBufferDemo[i] = receivedData->data[i];
+			if(receivedData->data[i] != 0x00 && receivedData->data[i+1] == 0x00) k = i;
+		}
+		osMailFree(tax_MailQId, receivedData); // Free memory after use
 		uint8_t addr_idx[3] = {address>>16,address>>8,address};
 		char addr_out[10];
 		sprintf(addr_out, "%08x", address);
 		HAL_UART_Transmit(&huart1, (uint8_t*) addr_out, 8, 1000);
-		HAL_UART_Transmit(&huart1, (uint8_t*)"\r", 1, 1000);
+		HAL_UART_Transmit(&huart1, (uint8_t*)"\r\n", 1, 1000);
 		k++;
-		taxBuffer[k] = ';';
+		taxBufferDemo[k] = ';';
 		for(size_t idx = 6; idx > 0 ; idx--){
 			k++;
-			taxBuffer[k] = addr_out[8 - idx];
+			taxBufferDemo[k] = addr_out[8 - idx];
 		}
 		
 		for (j=0;j<110-k-1;j++)
 		{
-			taxBuffer[j+k+1]=0x00;
+			taxBufferDemo[j+k+1]=0x00;
 		}
-		char tax_buffer_intro[] = "Tax Buffer received: ";
+		char tax_buffer_intro[] = "Tax Buffer SAVED SPI FLASH: ";
 		HAL_UART_Transmit(&huart1, (uint8_t*) tax_buffer_intro, strlen(tax_buffer_intro), 1000);
-		HAL_UART_Transmit(&huart1, taxBuffer, sizeof(taxBuffer), 100);
+		HAL_UART_Transmit(&huart1, taxBufferDemo, sizeof(taxBufferDemo), 100);
 		HAL_UART_Transmit(&huart1, (uint8_t*)"\n", 1, 100);
 
 		W25_Reset();
@@ -225,28 +236,59 @@ void StartSpiFlash(void const * argument)
 			is_erased = 1;
 		}
 		W25_Reset();
-		W25_PageProgram(address, taxBuffer, 128);
+		W25_PageProgram(address, taxBufferDemo, 128);
 		current_addr = address;
 		address+=128;
 		HAL_Delay(1000);
 		memset(flashBufferReceived, 0x00,128);
+    }
+}
 
-		check = 0;
-		j = 1;
-		k=0;
-		cnt=0;
-		memset(taxBuffer, 0x00, 128);
-		memset(gsvSentence, 0x00, 2048);
-		rs232Ext2_InitializeRxDMA();
-	}
-	W25_Reset();
-	W25_ReadJedecID();
-	W25_Reset();
-	W25_ReadData(current_addr, flashBufferReceived, 128);
-	char spi_flash_data_intro[] = "Flash DATA received: ";
-	HAL_UART_Transmit(&huart1, (uint8_t*) spi_flash_data_intro, strlen(spi_flash_data_intro), 1000);
-	HAL_UART_Transmit(&huart1, flashBufferReceived, sizeof(flashBufferReceived), 1000);
-	osDelay(1000);
+void receiveRMCData(void) {
+	uint8_t output_buffer[70];
+	uart_transmit_string(&huart1, (uint8_t*)"Inside Receiving RMC Data SPI FLASH\n");
+    osEvent evt = osMailGet(RMC_MailQId, osWaitForever); // Wait for mail
+	uart_transmit_string(&huart1, (uint8_t*)"Status: ");
+	uart_transmit_string(&huart1,(uint8_t*) evt.status);
+	uart_transmit_string(&huart1,(uint8_t*) "\n");
+	
+//    if (evt.status == osEventMail) {
+//		uart_transmit_string(&huart1, (uint8_t*)"Received  RMC Data SPI FLASH\n");
+//        RMCSTRUCT *receivedData = (RMCSTRUCT *)evt.value.p;
+//        // Process received data (e.g., display, log, or store data)
+//        snprintf((char *)output_buffer, sizeof(output_buffer), "Time Received FLASH: %d:%d:%d\n", receivedData->tim.hour, receivedData->tim.min, receivedData->tim.sec);
+//		uart_transmit_string(&huart1, output_buffer);
+//		
+//        snprintf((char *)output_buffer, sizeof(output_buffer), "Date Received FLASH : %d/%d/%d\n", receivedData->date.Day, receivedData->date.Mon, receivedData->date.Yr);
+//		uart_transmit_string(&huart1, output_buffer);
+//		
+//        snprintf((char *)output_buffer, sizeof(output_buffer), "Location Received FLASH: %.4f %c, %.4f %c\n", receivedData->lcation.latitude, receivedData->lcation.NS, receivedData->lcation.longitude, receivedData->lcation.EW);
+//		uart_transmit_string(&huart1, output_buffer);
+//        snprintf((char *)output_buffer, sizeof(output_buffer),"Speed FLASH: %.2f, Course: %.2f, Valid: %d\n", receivedData->speed, receivedData->course, receivedData->isValid);
+//		uart_transmit_string(&huart1, output_buffer);
+
+//        osMailFree(RMC_MailQId, receivedData); // Free memory after use
+//    }
+}
+
+void StartSpiFlash(void const * argument)
+{
+  /* USER CODE BEGIN StartSpiFlash */
+  /* Infinite loop */
+	current_addr = address;
+	for(;;){
+		osDelay(1000);
+		uart_transmit_string(&huart1, (uint8_t*) "INSIDE SPI FLASH\n");
+		W25_Reset();
+		W25_ReadJedecID();
+		W25_Reset();
+		//W25_ReadData(current_addr, flashBufferReceived, 128);
+		//char spi_flash_data_intro[] = "Flash DATA received: ";
+		//HAL_UART_Transmit(&huart1, (uint8_t*) spi_flash_data_intro, strlen(spi_flash_data_intro), 1000);
+		//HAL_UART_Transmit(&huart1, flashBufferReceived, sizeof(flashBufferReceived), 1000);
+		//receiveTaxData();
+		receiveRMCData();
+		osDelay(1000);
   }
   /* USER CODE END StartSpiFlash */
 }

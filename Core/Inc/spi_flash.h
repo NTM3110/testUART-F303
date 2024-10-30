@@ -5,7 +5,8 @@
 
 
 #include <stdint.h> // uint8_t
-#include "main.h"   // HAL header files, SPI and GPIO defines
+#include "main.h"  
+#include "cmsis_os.h"// HAL header files, SPI and GPIO defines
 
 #define W25_CS_ENABLE()   HAL_GPIO_WritePin(SPI2_NCS_GPIO_Port, SPI2_NCS_Pin, GPIO_PIN_RESET)
 #define W25_CS_DISABLE()  HAL_GPIO_WritePin(SPI2_NCS_GPIO_Port, SPI2_NCS_Pin, GPIO_PIN_SET)
@@ -31,10 +32,12 @@
 #define W25_STATUS1_SRP0            1<<7
 
 extern SPI_HandleTypeDef hspi1; // STM32 SPI instance
-extern uint16_t j,k,cnt,check;
-extern uint8_t gsvSentence[2048];
-extern uint8_t taxBuffer[128];
+//extern uint16_t j,k,cnt,check;
+//extern uint8_t gsvSentence[2048];
+//extern uint8_t taxBuffer[128];
 extern uint8_t flashBufferReceived[128];
+extern osMailQId tax_MailQId;
+extern osMailQId RMC_MailQId;
 
 #define TIMEOUT                 1000 // MS Timeout for HAL function calls
 #define PAGE_PROGRAM_TIMEOUT    1000 // MS Timeout for Program
@@ -69,6 +72,9 @@ int W25_SectorErase(uint32_t address);
 int W25_PageProgram(uint32_t address, uint8_t *buf, uint32_t count);
 
 int W25_ReadData(uint32_t address, uint8_t *buf, int bufSize);
+
+void receiveRMCData(void);
+
 
 
 #endif
