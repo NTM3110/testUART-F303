@@ -28,6 +28,7 @@
 #include "Controlling_LED.h"
 #include "GPS.h"
 #include "RS232-UART2.h"
+#include "GSM.h"
 #include <stdio.h>
 
 #define READLOG_BLOCK_BUFFER_LENGHT  2048
@@ -54,8 +55,10 @@ SPI_HandleTypeDef hspi1;
 
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
+UART_HandleTypeDef huart3;
 DMA_HandleTypeDef hdma_usart1_rx;
 DMA_HandleTypeDef hdma_usart2_rx;
+DMA_HandleTypeDef hdma_usart3_rx;
 
 osThreadId defaultTaskHandle;
 osThreadId ControllingLEDHandle;
@@ -74,6 +77,7 @@ static void MX_DMA_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_USART3_UART_Init(void);
 void StartDefaultTask(void const * argument);
 void StartControllingLED(void const * argument);
 void StartUART1(void const * argument);
@@ -122,6 +126,7 @@ int main(void)
   MX_USART1_UART_Init();
   MX_SPI1_Init();
   MX_USART2_UART_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -142,33 +147,34 @@ int main(void)
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
 
-  /* Create the thread(s) */
-  /* definition and creation of defaultTask */
- // osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+//  /* Create the thread(s) */
+//  /* definition and creation of defaultTask */
+//  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
 //  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
-  /* definition and creation of ControllingLED */
+//  /* definition and creation of ControllingLED */
 //  osThreadDef(ControllingLED, StartControllingLED, osPriorityIdle, 0, 128);
- // ControllingLEDHandle = osThreadCreate(osThread(ControllingLED), NULL);
+//  ControllingLEDHandle = osThreadCreate(osThread(ControllingLED), NULL);
 
-  /* definition and creation of UART1 */
-  //osThreadDef(UART1, StartUART1, osPriorityIdle, 0, 128);
- // UART1Handle = osThreadCreate(osThread(UART1), NULL);
- /* definition and creation of GPS */
-  osThreadDef(GPS, StartGPS, osPriorityIdle, 0, 1280);
-  GPSHandle = osThreadCreate(osThread(GPS), NULL);
-	
-  /* definition and creation of SpiFlash */
-  osThreadDef(SpiFlash, StartSpiFlash, osPriorityIdle, 0, 1024);
-  SpiFlashHandle = osThreadCreate(osThread(SpiFlash), NULL);
+//  /* definition and creation of UART1 */
+//  osThreadDef(UART1, StartUART1, osPriorityIdle, 0, 128);
+//  UART1Handle = osThreadCreate(osThread(UART1), NULL);
 
-  /* definition and creation of RFID */
-  //osThreadDef(RFID, StartRFID, osPriorityIdle, 0, 128);
- // RFIDHandle = osThreadCreate(osThread(RFID), NULL);
+//  /* definition and creation of SpiFlash */
+//  osThreadDef(SpiFlash, StartSpiFlash, osPriorityIdle, 0, 1024);
+//  SpiFlashHandle = osThreadCreate(osThread(SpiFlash), NULL);
+
+//  /* definition and creation of GPS */
+//  osThreadDef(GPS, StartGPS, osPriorityIdle, 0, 640);
+//  GPSHandle = osThreadCreate(osThread(GPS), NULL);
+
+//  /* definition and creation of RFID */
+//  osThreadDef(RFID, StartRFID, osPriorityIdle, 0, 128);
+//  RFIDHandle = osThreadCreate(osThread(RFID), NULL);
 
   /* definition and creation of GSM */
-//  osThreadDef(GSM, StartGSM, osPriorityIdle, 0, 128);
- // GSMHandle = osThreadCreate(osThread(GSM), NULL);
+  osThreadDef(GSM, StartGSM, osPriorityIdle, 0, 128);
+  GSMHandle = osThreadCreate(osThread(GSM), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -225,9 +231,11 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_USART2;
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_USART2
+                              |RCC_PERIPHCLK_USART3;
   PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
   PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
+  PeriphClkInit.Usart3ClockSelection = RCC_USART3CLKSOURCE_PCLK1;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
@@ -345,6 +353,41 @@ static void MX_USART2_UART_Init(void)
 }
 
 /**
+  * @brief USART3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART3_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART3_Init 0 */
+
+  /* USER CODE END USART3_Init 0 */
+
+  /* USER CODE BEGIN USART3_Init 1 */
+
+  /* USER CODE END USART3_Init 1 */
+  huart3.Instance = USART3;
+  huart3.Init.BaudRate = 115200;
+  huart3.Init.WordLength = UART_WORDLENGTH_8B;
+  huart3.Init.StopBits = UART_STOPBITS_1;
+  huart3.Init.Parity = UART_PARITY_NONE;
+  huart3.Init.Mode = UART_MODE_TX_RX;
+  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart3.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart3.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART3_Init 2 */
+
+  /* USER CODE END USART3_Init 2 */
+
+}
+
+/**
   * Enable DMA controller clock
   */
 static void MX_DMA_Init(void)
@@ -354,6 +397,9 @@ static void MX_DMA_Init(void)
   __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
+  /* DMA1_Channel3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
   /* DMA1_Channel5_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel5_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel5_IRQn);
@@ -380,27 +426,33 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0|GPIO_PIN_9, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_4, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
 
-  /*Configure GPIO pin : PC2 */
-  GPIO_InitStruct.Pin = GPIO_PIN_2;
+  /*Configure GPIO pins : PC0 PC1 PC9 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_9;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PC2 PC4 */
+  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_4;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PC9 */
-  GPIO_InitStruct.Pin = GPIO_PIN_9;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  /*Configure GPIO pin : PB1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_1;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PA15 */
   GPIO_InitStruct.Pin = GPIO_PIN_15;
@@ -435,36 +487,6 @@ void StartDefaultTask(void const * argument)
   /* USER CODE END 5 */
 }
 
-
-/* USER CODE END Header_StartRFID */
-void StartRFID(void const * argument)
-{
-  /* USER CODE BEGIN StartRFID */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END StartRFID */
-}
-
-/* USER CODE BEGIN Header_StartGSM */
-/**
-* @brief Function implementing the GSM thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartGSM */
-void StartGSM(void const * argument)
-{
-  /* USER CODE BEGIN StartGSM */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END StartGSM */
-}
 
 /**
   * @brief  Period elapsed callback in non blocking mode

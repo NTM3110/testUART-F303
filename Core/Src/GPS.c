@@ -181,8 +181,8 @@ void getRMC(){
 		rmc_str[i] = 0;
 	}
 	if(isRMCExist == 1){
-		parse_rmc(rmc_str);
-		send_rmc_data(&huart1);
+		//parse_rmc(rmc_str);
+		//send_rmc_data(&huart1);
 		if(rmc.isValid == 1){
 			sendRMCDataToFlash(&rmc);
 		}
