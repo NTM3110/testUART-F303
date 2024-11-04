@@ -6,6 +6,8 @@
 #include "stdlib.h"
 #include "math.h"
 
+
+uint16_t j,k,cnt,check;
 RingBufferDmaU8_TypeDef rs232Ext2RxDMARing;
 osMailQId tax_MailQId;
 uint8_t taxBuffer[128];

@@ -183,10 +183,10 @@ void getRMC(){
 	if(isRMCExist == 1){
 		parse_rmc(rmc_str);
 		send_rmc_data(&huart1);
+		if(rmc.isValid == 1){
+			sendRMCDataToFlash(&rmc);
+		}
 		isRMCExist = 0;
-		//if(rmc.isValid == 1){
-		sendRMCDataToFlash(&rmc);
-		//}
 	}
 	HAL_UART_Transmit(&huart1, rmc_str, 128,1000);
 	
@@ -199,21 +199,37 @@ void StartGPS(void const * argument)
   int countLine = 0;
   int i;
   /* Infinite loop */
-   uint32_t avlMaxDMABufferUsage = 0;
-  osMailQDef(RMC_MailQ, 10, TAX_MAIL_STRUCT); 
-  RMC_MailQId = osMailCreate(osMailQ(RMC_MailQ), NULL);
+  uint32_t avlMaxDMABufferUsage = 0;
+//  rmc.tim.hour = 10;
+//	rmc.tim.min = 12;
+//	rmc.tim.sec = 0;
+//	rmc.lcation.latitude =20.99;
+//	rmc.lcation.NS = 'N';
+//	rmc.lcation.EW = 'E';
+//	rmc.lcation.longitude = 105.7;
+//	rmc.isValid = 1;
+//	rmc.course = 150.7;
+//	rmc.date.Day = 20;
+//	rmc.date.Mon = 10;
+//	rmc.date.Yr = 2024;
+//	rmc.speed = 0.0;
+//	rmc.isValid = 1;
+	osMailQDef(RMC_MailQ, 10, RMCSTRUCT); 
+	RMC_MailQId = osMailCreate(osMailQ(RMC_MailQ), NULL);
   memset(gpsSentence, 0x00, GPS_STACK_SIZE);	
   while(1)
   {
-	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
-	osDelay(1000);
-	//HAL_UART_Transmit(&huart1, (uint8_t *)"GPS Received:\n", strlen("GPS Received:\n"), 1000);
-	//HAL_UART_Transmit(&huart1, gpsSentence, GPS_STACK_SIZE, 1000);	
-	//HAL_UART_Transmit(&huart1, (uint8_t *)"\n", strlen("\n"), 1000);
-	getRMC();
-	HAL_UART_Transmit(&huart1, (uint8_t *)"Getting GPS \n", strlen("Getting GPS \n"), 1000);
-	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
-	osDelay(1000);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
+		osDelay(1000);
+		//HAL_UART_Transmit(&huart1, (uint8_t *)"GPS Received:\n", strlen("GPS Received:\n"), 1000);
+		//HAL_UART_Transmit(&huart1, gpsSentence, GPS_STACK_SIZE, 1000);	
+		//HAL_UART_Transmit(&huart1, (uint8_t *)"\n", strlen("\n"), 1000);
+		getRMC();
+		//sendRMCDataToFlash(&rmc);
+//		rmc.tim.sec+=2;
+		HAL_UART_Transmit(&huart1, (uint8_t *)"Getting GPS \n", strlen("Getting GPS \n"), 1000);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
+		osDelay(1000);
   }
   /* USER CODE END StartGPS */
 }

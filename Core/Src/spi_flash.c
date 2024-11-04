@@ -5,12 +5,22 @@
 #include "RS232-UART1.h"
 #include "system_management.h"
 #include "gps.h"
+#include <time.h>
 
 extern UART_HandleTypeDef huart1;
-uint32_t address = 0x1000;
+uint32_t address_tax = 0x1000;
+uint32_t address_rmc = 0x3000;
+
 uint32_t current_addr;
-int is_erased = 0;
+int is_erased_tax = 0;
+int is_erased_rmc = 0;
+
+uint8_t flashBufferTaxReceived[128];
+uint8_t flashBufferRMCReceived[128];
 uint8_t taxBufferDemo[128];
+uint8_t rmcBufferDemo[128];
+
+RMCSTRUCT rmc_saved;
 
 int W25_ChipErase(void)
 {
@@ -197,95 +207,186 @@ int W25_ReadData(uint32_t address, uint8_t *buf, int bufSize)
 
 void receiveTaxData(void) {
 //	uint8_t output_buffer[200];
-	int k = 0;
+		int k = 0;
+		int j;
     osEvent evt = osMailGet(tax_MailQId, 2000); // Wait for mail
     if (evt.status == osEventMail) {
-        TAX_MAIL_STRUCT *receivedData = (TAX_MAIL_STRUCT *)evt.value.p;
-		uart_transmit_string(&huart1, (uint8_t*)"Received  TAX Data: \n");
+			TAX_MAIL_STRUCT *receivedData = (TAX_MAIL_STRUCT *)evt.value.p;
+			uart_transmit_string(&huart1, (uint8_t*)"Received  TAX Data: \n");
         // Process received data (e.g., display, log, or store data)
-		uart_transmit_string(&huart1, receivedData->data);
-		for(size_t i = 0; i < 128; i++){
-			taxBufferDemo[i] = receivedData->data[i];
-			if(receivedData->data[i] != 0x00 && receivedData->data[i+1] == 0x00) k = i;
-		}
-		osMailFree(tax_MailQId, receivedData); // Free memory after use
-		uint8_t addr_idx[3] = {address>>16,address>>8,address};
-		char addr_out[10];
-		sprintf(addr_out, "%08x", address);
-		HAL_UART_Transmit(&huart1, (uint8_t*) addr_out, 8, 1000);
-		HAL_UART_Transmit(&huart1, (uint8_t*)"\r\n", 1, 1000);
-		k++;
-		taxBufferDemo[k] = ';';
-		for(size_t idx = 6; idx > 0 ; idx--){
+			uart_transmit_string(&huart1, receivedData->data);
+			for(size_t i = 0; i < 128; i++){
+				taxBufferDemo[i] = receivedData->data[i];
+				if(receivedData->data[i] != 0x00 && receivedData->data[i+1] == 0x00) k = i;
+			}
+			osMailFree(tax_MailQId, receivedData); // Free memory after use
+			uint8_t addr_idx[3] = {address_tax>>16,address_tax>>8,address_tax};
+			char addr_out[10];
+			sprintf(addr_out, "%08x", address_tax);
+			HAL_UART_Transmit(&huart1, (uint8_t*) addr_out, 8, 1000);
+			HAL_UART_Transmit(&huart1, (uint8_t*)"\r\n", 1, 1000);
 			k++;
-			taxBufferDemo[k] = addr_out[8 - idx];
-		}
-		
-		for (j=0;j<110-k-1;j++)
-		{
-			taxBufferDemo[j+k+1]=0x00;
-		}
-		char tax_buffer_intro[] = "Tax Buffer SAVED SPI FLASH: ";
-		HAL_UART_Transmit(&huart1, (uint8_t*) tax_buffer_intro, strlen(tax_buffer_intro), 1000);
-		HAL_UART_Transmit(&huart1, taxBufferDemo, sizeof(taxBufferDemo), 100);
-		HAL_UART_Transmit(&huart1, (uint8_t*)"\n", 1, 100);
+			taxBufferDemo[k] = ';';
+			for(size_t idx = 6; idx > 0 ; idx--){
+				k++;
+				taxBufferDemo[k] = addr_out[8 - idx];
+			}
+			
+			for (j=0;j<110-k-1;j++)
+			{
+				taxBufferDemo[j+k+1]=0x00;
+			}
+			char tax_buffer_intro[] = "Tax Buffer SAVED SPI FLASH: ";
+			HAL_UART_Transmit(&huart1, (uint8_t*) tax_buffer_intro, strlen(tax_buffer_intro), 1000);
+			HAL_UART_Transmit(&huart1, taxBufferDemo, sizeof(taxBufferDemo), 100);
+			HAL_UART_Transmit(&huart1, (uint8_t*)"\n", 1, 100);
 
-		W25_Reset();
-		if (is_erased == 0){
-			W25_SectorErase(address);
-			is_erased = 1;
-		}
-		W25_Reset();
-		W25_PageProgram(address, taxBufferDemo, 128);
-		current_addr = address;
-		address+=128;
-		HAL_Delay(1000);
-		memset(flashBufferReceived, 0x00,128);
-    }
+			W25_Reset();
+			if (is_erased_tax == 0){
+				W25_SectorErase(address_tax);
+				is_erased_tax = 1;
+			}
+			W25_Reset();
+			W25_PageProgram(address_tax, taxBufferDemo, 128);
+			current_addr = address_tax;
+			address_tax+=128;
+			HAL_Delay(1000);
+			memset(flashBufferTaxReceived, 0x00,128);
+	}
+}
+
+uint32_t calculate_epoch_time_utc(DATE *date, TIME *time) {
+		uart_transmit_string(&huart1, (uint8_t*) "Calculate Epoch data");
+    struct tm timeinfo;
+		uint8_t output_buffer[128];
+    // Set up time structure
+    timeinfo.tm_year = date->Yr - 1900; // - 1900 + 2000
+		snprintf((char*)output_buffer, 128, "YEAR IN TIMEINFO: %d \n", timeinfo.tm_year);
+		uart_transmit_string(&huart1, output_buffer);
+		
+    timeinfo.tm_mon = date->Mon - 1;
+    timeinfo.tm_mday = date->Day;
+    timeinfo.tm_hour = time->hour;
+    timeinfo.tm_min = time->min;
+    timeinfo.tm_sec = time->sec;
+    timeinfo.tm_isdst = -1; // Let mktime determine DST if necessary
+
+    // Get the local epoch time and then adjust for timezone offset
+    time_t local_epoch = mktime(&timeinfo);
+    return (uint32_t)(local_epoch + 25200); // Subtract timezone offset
+}
+
+void format_rmc_data(RMCSTRUCT *rmc_data, char *output_buffer, size_t buffer_size) {
+		uart_transmit_string(&huart1, (uint8_t*) "Format RMC data");
+    uint32_t epoch_time = calculate_epoch_time_utc(&rmc_data->date, &rmc_data->tim);
+
+    // Format all fields in a single line with semicolon separation, including date
+    snprintf(output_buffer, buffer_size, "%d;%d;%d;%d;%d;%d;%.4f;%c;%.4f;%c;%.1f;%.1f;%s;%u", rmc_data->date.Day, rmc_data->date.Mon, rmc_data->date.Yr, rmc_data->tim.hour, rmc_data->tim.min, rmc_data->tim.sec, rmc_data->lcation.latitude, rmc_data->lcation.NS, rmc_data->lcation.longitude, rmc_data->lcation.EW, rmc_data->speed, rmc_data->course, rmc_data->isValid ? "Valid" : "Invalid", epoch_time);
+}
+
+//void saveRMC(int hour, int min, int sec, int Day, int Mon, int Yr, float latitude, float longitude, float speed, float course, int isValid, time_t epoch){
+void saveRMC(){
+int k = 0;
+	int j = 0;
+//	rmc_saved.tim.hour = hour;
+//	rmc_saved.tim.min = min;
+//	rmc_saved.tim.sec = sec;
+//	rmc_saved.date.Mon = Mon;
+//	rmc_saved.date.Day = Day;
+//	rmc_saved.date.Yr = Yr;
+//	rmc_saved.lcation.latitude = latitude;
+//	rmc_saved.lcation.longitude = longitude;
+//	rmc_saved.speed = speed;
+//	rmc_saved.course = course;
+//	rmc_saved.isValid = isValid;
+//	rmc_saved.date.epoch = epoch;
+	W25_Reset();
+	if (is_erased_rmc == 0){
+		W25_SectorErase(address_rmc);
+		is_erased_rmc = 1;
+	}
+	
+	//format_rmc_data(&rmc_saved, (char*)rmcBufferDemo, 128);
+	
+	for(size_t i = 0; i < 128; i++){
+			if(rmcBufferDemo[i] != 0x00 && rmcBufferDemo[i+1] == 0x00){
+				k = i;
+				break;
+			}
+	}
+	uint8_t addr_idx[3] = {address_rmc>>16,address_rmc>>8,address_rmc};
+	char addr_out[10];
+	sprintf(addr_out, "%08x", address_rmc);
+	HAL_UART_Transmit(&huart1, (uint8_t*) addr_out, 8, 1000);
+	HAL_UART_Transmit(&huart1, (uint8_t*)"\r\n", 1, 1000);
+	
+	k++;
+	rmcBufferDemo[k] = ';';
+	for(size_t idx = 6; idx > 0 ; idx--){
+		k++;
+		rmcBufferDemo[k] = addr_out[8 - idx];
+	}
+	
+	for (j=0;j<110-k-1;j++)
+	{
+		rmcBufferDemo[j+k+1]=0x00;
+	}
+	W25_Reset();
+	W25_PageProgram(address_rmc, rmcBufferDemo, 128);
+	uart_transmit_string(&huart1, (uint8_t*) "Buffer before saving to FLASH: ");
+	uart_transmit_string(&huart1, rmcBufferDemo);
+	current_addr = address_rmc;
+	address_rmc+=128;
+	HAL_Delay(1000);
+	memset(flashBufferRMCReceived, 0x00,128);
 }
 
 void receiveRMCData(void) {
 	uint8_t output_buffer[70];
 	uart_transmit_string(&huart1, (uint8_t*)"Inside Receiving RMC Data SPI FLASH\n");
-    osEvent evt = osMailGet(RMC_MailQId, osWaitForever); // Wait for mail
-	uart_transmit_string(&huart1, (uint8_t*)"Status: ");
-	uart_transmit_string(&huart1,(uint8_t*) evt.status);
-	uart_transmit_string(&huart1,(uint8_t*) "\n");
+	osEvent evt = osMailGet(RMC_MailQId, osWaitForever); // Wait for mail
 	
-//    if (evt.status == osEventMail) {
-//		uart_transmit_string(&huart1, (uint8_t*)"Received  RMC Data SPI FLASH\n");
-//        RMCSTRUCT *receivedData = (RMCSTRUCT *)evt.value.p;
-//        // Process received data (e.g., display, log, or store data)
-//        snprintf((char *)output_buffer, sizeof(output_buffer), "Time Received FLASH: %d:%d:%d\n", receivedData->tim.hour, receivedData->tim.min, receivedData->tim.sec);
-//		uart_transmit_string(&huart1, output_buffer);
-//		
-//        snprintf((char *)output_buffer, sizeof(output_buffer), "Date Received FLASH : %d/%d/%d\n", receivedData->date.Day, receivedData->date.Mon, receivedData->date.Yr);
-//		uart_transmit_string(&huart1, output_buffer);
-//		
-//        snprintf((char *)output_buffer, sizeof(output_buffer), "Location Received FLASH: %.4f %c, %.4f %c\n", receivedData->lcation.latitude, receivedData->lcation.NS, receivedData->lcation.longitude, receivedData->lcation.EW);
-//		uart_transmit_string(&huart1, output_buffer);
-//        snprintf((char *)output_buffer, sizeof(output_buffer),"Speed FLASH: %.2f, Course: %.2f, Valid: %d\n", receivedData->speed, receivedData->course, receivedData->isValid);
-//		uart_transmit_string(&huart1, output_buffer);
+	if (evt.status == osEventMail) {
+			uart_transmit_string(&huart1, (uint8_t*)"Received  RMC Data SPI FLASH\n");
+			RMCSTRUCT *receivedData = (RMCSTRUCT *)evt.value.p;
+			// Process received data (e.g., display, log, or store data)
+			snprintf((char *)output_buffer, sizeof(output_buffer), "Time Received FLASH: %d:%d:%d\n", receivedData->tim.hour, receivedData->tim.min, receivedData->tim.sec);
+			uart_transmit_string(&huart1, output_buffer);
+	
+			snprintf((char *)output_buffer, sizeof(output_buffer), "Date Received FLASH : %d/%d/%d\n", receivedData->date.Day, receivedData->date.Mon, receivedData->date.Yr);
+			uart_transmit_string(&huart1, output_buffer);
+	
+			snprintf((char *)output_buffer, sizeof(output_buffer), "Location Received FLASH: %.4f %c, %.4f %c\n", receivedData->lcation.latitude, receivedData->lcation.NS, receivedData->lcation.longitude, receivedData->lcation.EW);
+			uart_transmit_string(&huart1, output_buffer);
+			
+			snprintf((char *)output_buffer, sizeof(output_buffer),"Speed FLASH: %.2f, Course: %.2f, Valid: %d\n", receivedData->speed, receivedData->course, receivedData->isValid);
+			uart_transmit_string(&huart1, output_buffer);
 
-//        osMailFree(RMC_MailQId, receivedData); // Free memory after use
-//    }
+		//	uint32_t epoch_time = calculate_epoch_time_utc(&receivedData->date, &receivedData->tim);
+			//saveRMC(receivedData->tim.hour, receivedData->tim.min, receivedData->tim.sec, receivedData->date.Mon, receivedData->date.Day, receivedData->date.Yr, receivedData->lcation.latitude, receivedData->lcation.longitude, receivedData->speed, receivedData->course, receivedData->isValid, receivedData->date.epoch);
+			//snprintf((char*)rmcBufferDemo, 128, "%d;%d;%d;%d;%d;%d;%.4f;%c;%.4f;%c;%.1f;%.1f;%s;%u", receivedData->date.Day, receivedData->date.Mon, receivedData->date.Yr, receivedData->tim.hour, receivedData->tim.min, receivedData->tim.sec, receivedData->lcation.latitude, receivedData->lcation.NS, receivedData->lcation.longitude, receivedData->lcation.EW, receivedData->speed, receivedData->course, receivedData->isValid ? "Valid" : "Invalid", epoch_time);
+			
+			format_rmc_data(receivedData,(char*) rmcBufferDemo, 128);
+			saveRMC();
+			osMailFree(RMC_MailQId, receivedData); // Free memory after use
+   }
 }
 
 void StartSpiFlash(void const * argument)
 {
   /* USER CODE BEGIN StartSpiFlash */
   /* Infinite loop */
-	current_addr = address;
+	current_addr = address_rmc;
 	for(;;){
 		osDelay(1000);
 		uart_transmit_string(&huart1, (uint8_t*) "INSIDE SPI FLASH\n");
 		W25_Reset();
 		W25_ReadJedecID();
 		W25_Reset();
-		//W25_ReadData(current_addr, flashBufferReceived, 128);
-		//char spi_flash_data_intro[] = "Flash DATA received: ";
-		//HAL_UART_Transmit(&huart1, (uint8_t*) spi_flash_data_intro, strlen(spi_flash_data_intro), 1000);
-		//HAL_UART_Transmit(&huart1, flashBufferReceived, sizeof(flashBufferReceived), 1000);
+		W25_ReadData(current_addr, flashBufferRMCReceived, 128);
+		char spi_flash_data_intro[] = "Flash DATA received: ";
+		HAL_UART_Transmit(&huart1, (uint8_t*) spi_flash_data_intro, strlen(spi_flash_data_intro), 1000);
+		HAL_UART_Transmit(&huart1, flashBufferRMCReceived, sizeof(flashBufferRMCReceived), 1000);
 		//receiveTaxData();
 		receiveRMCData();
 		osDelay(1000);

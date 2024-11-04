@@ -32,10 +32,6 @@
 
 #define READLOG_BLOCK_BUFFER_LENGHT  2048
 
-
-uint8_t flashBufferReceived[128];
-uint16_t j = 1,k=0,cnt=0,check=0;
-
 ////////////////////////
 
 /* USER CODE END Includes */
@@ -149,31 +145,29 @@ int main(void)
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
  // osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
-  //defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+//  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* definition and creation of ControllingLED */
-  //osThreadDef(ControllingLED, StartControllingLED, osPriorityIdle, 0, 128);
+//  osThreadDef(ControllingLED, StartControllingLED, osPriorityIdle, 0, 128);
  // ControllingLEDHandle = osThreadCreate(osThread(ControllingLED), NULL);
 
-  //* definition and creation of UART1 */
+  /* definition and creation of UART1 */
   //osThreadDef(UART1, StartUART1, osPriorityIdle, 0, 128);
  // UART1Handle = osThreadCreate(osThread(UART1), NULL);
-  /* definition and creation of GPS */
-  osThreadDef(GPS, StartGPS, osPriorityIdle, 0, 416);
+ /* definition and creation of GPS */
+  osThreadDef(GPS, StartGPS, osPriorityIdle, 0, 1280);
   GPSHandle = osThreadCreate(osThread(GPS), NULL);
-  
+	
   /* definition and creation of SpiFlash */
-  osThreadDef(SpiFlash, StartSpiFlash, osPriorityIdle, 0, 512);
+  osThreadDef(SpiFlash, StartSpiFlash, osPriorityIdle, 0, 1024);
   SpiFlashHandle = osThreadCreate(osThread(SpiFlash), NULL);
 
-
-
   /* definition and creation of RFID */
- // osThreadDef(RFID, StartRFID, osPriorityIdle, 0, 128);
+  //osThreadDef(RFID, StartRFID, osPriorityIdle, 0, 128);
  // RFIDHandle = osThreadCreate(osThread(RFID), NULL);
 
   /* definition and creation of GSM */
- // osThreadDef(GSM, StartGSM, osPriorityIdle, 0, 128);
+//  osThreadDef(GSM, StartGSM, osPriorityIdle, 0, 128);
  // GSMHandle = osThreadCreate(osThread(GSM), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -441,28 +435,7 @@ void StartDefaultTask(void const * argument)
   /* USER CODE END 5 */
 }
 
-/* USER CODE BEGIN Header_StartControllingLED */
-/**
-* @brief Function implementing the ControllingLED thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartControllingLED */
-/* USER CODE BEGIN Header_StartUART1 */
-/**
-* @brief Function implementing the UART1 thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartUART1 */
 
-
-/* USER CODE BEGIN Header_StartRFID */
-/**
-* @brief Function implementing the RFID thread.
-* @param argument: Not used
-* @retval None
-*/
 /* USER CODE END Header_StartRFID */
 void StartRFID(void const * argument)
 {

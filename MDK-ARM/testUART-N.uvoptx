@@ -370,7 +370,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>.\system_management.c</PathWithFileName>
+      <PathWithFileName>..\Core\Src\system_management.c</PathWithFileName>
       <FilenameWithoutPath>system_management.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>

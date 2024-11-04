@@ -35,7 +35,7 @@ extern SPI_HandleTypeDef hspi1; // STM32 SPI instance
 //extern uint16_t j,k,cnt,check;
 //extern uint8_t gsvSentence[2048];
 //extern uint8_t taxBuffer[128];
-extern uint8_t flashBufferReceived[128];
+
 extern osMailQId tax_MailQId;
 extern osMailQId RMC_MailQId;
 
