@@ -21,8 +21,9 @@ void SIM_UART_ReInitializeRxDMA(void){
 	RingBufferDmaU8_initUSARTRx(&SIMRxDMARing, &huart3, response, SIM_RESPONSE_MAX_SIZE);
 }
 void receive_response(char *cmd_str) {
-		snprintf(
-		uart_transmit_string(&huart1, (uint8_t*) "Response for SIM module\n at command: %s", cmd_str);
+		uint8_t output_buffer[128];
+		snprintf((char *)output_buffer, 128, "Response for SIM module\n at command: %s", cmd_str);
+		uart_transmit_string(&huart1, output_buffer);
 		//while(response[1] == '\0'){}
 		HAL_UART_Transmit(&huart1, response, SIM_RESPONSE_MAX_SIZE, 1000);
 		memset(response, 0x00, 128);
@@ -37,7 +38,7 @@ void init_SIM_module() {
 	osDelay(1000);
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_1, GPIO_PIN_SET);
 	send_AT_command("AT\r\n");
-	receive_response();
+	receive_response("INIT SIM MODULE");
 	HAL_Delay(100);
 		
     // Check if SIM is ready
@@ -60,27 +61,27 @@ void configure_APN(int context_id){
 	uint8_t command[256];
 	snprintf((char *)command, sizeof(command), "AT+QICSGP=%d,\"%s\",\"%s\",\"%s\",%d\r\n", context_id, APN_NAME, APN_USERNAME, APN_PASSWD, APN_AUTHEN);
 	send_AT_command((char*)command);
-	receive_response();
+	receive_response("CONFIGURE APN");
 }
 
 void activate_context(int context_id){
 	uint8_t command[128];
 	snprintf((char *)command, sizeof(command), "AT+QIACT=%d\r\n", context_id);
 	send_AT_command((char*)command);
-	receive_response();
+	receive_response("ACTIVATE CONTEXT");
 }
 
 void deactivate_context(int context_id){
 	uint8_t command[128];
 	snprintf((char *)command, sizeof(command), "AT+QIDEACT=%d\r\n", context_id);
 	send_AT_command((char*)command);
-	receive_response();
+	receive_response("DEACTIVATE CONTEXT");
 }
 void check_context(){
 	uint8_t command[128];
 	snprintf((char *)command, sizeof(command), "AT+QIACT?\r\n");
 	send_AT_command((char*)command);
-	receive_response();
+	receive_response("CHECK CONTEXT");
 }
 
 void open_socket_service(int context_id, int connect_id, char *service_type, char *ip_address, int remote_port, int local_port, int access_mode){
