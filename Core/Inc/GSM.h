@@ -13,7 +13,7 @@
 #define APN_PASSWD									""
 #define APN_AUTHEN									0
 #define SERVICE_TYPE 								"TCP"
-#define IP_ADDRESS									"188.245.151.94"
+#define IP_ADDRESS									"46.101.24.212"
 #define REMOTE_PORT									5015
 #define CHECK_RESPONSE							"OK"
 
@@ -36,7 +36,7 @@ void activate_context(int context_id);
 
 void check_activate_context();
 
-void open_socket_service(int context_id, int connect_id, char *service_type, char *ip_address, int remote_port, int local_port, int access_mode);
+int open_socket_service(int context_id, int connect_id, char *service_type, char *ip_address, int remote_port, int local_port, int access_mode);
 
 void SIM_UART_ReInitializeRxDMA(void);
 

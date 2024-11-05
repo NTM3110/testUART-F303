@@ -2,6 +2,7 @@
 #include "string.h"
 #include "cmsis_os.h"
 #include <stdio.h>
+#include "time.h"
 
 uint8_t response[256];
 RingBufferDmaU8_TypeDef SIMRxDMARing;
@@ -87,11 +88,46 @@ int check_SIM_ready(){
 		osDelay(100);
 		memset(response, 0x00, 128);
 		SIM_UART_ReInitializeRxDMA();
+		osDelay(100);
+		
+		send_AT_command("AT+QCCID\r\n");
+		while(strstr((char *) response, "+QCCID:") == NULL){
+			receive_response("Check SIM CCID\n");
+		}
+		osDelay(100);
+		memset(response, 0x00, 128);
+		SIM_UART_ReInitializeRxDMA();
+		
+		send_AT_command("AT+CREG=1\r\n");
+		while(strstr((char *) response, CHECK_RESPONSE) == NULL){
+			receive_response("SET Network Registration Status (CS service)\n");
+		}
+		
+		send_AT_command("AT+CREG?\r\n");
+		while(strstr((char *) response, "+CREG:") == NULL){
+			receive_response("Check Network Registration Status (CS service)\n");
+		}
+		osDelay(100);
+		memset(response, 0x00, 128);
+		SIM_UART_ReInitializeRxDMA();
+		
+		send_AT_command("AT+CGREG=1\r\n");
+		while(strstr((char *) response, CHECK_RESPONSE) == NULL){
+			receive_response("SET Network Registration Status (PS service)\n");
+		}
+		send_AT_command("AT+CGREG?\r\n");
+		while(strstr((char *) response, "+CGREG:") == NULL){
+			receive_response("Check Network Registration Status (PS Service)\n");
+		}
+		osDelay(100);
+		memset(response, 0x00, 128);
+		SIM_UART_ReInitializeRxDMA();
+		
 		return 1;
 }
 
 void check_configure_APN(){
-		send_AT_command("AT+QICSGP=?\r\n");
+		send_AT_command("AT+QICSGP=1\r\n");
 		osDelay(150);
 		receive_response("Check Configuring APN\n");
 }
@@ -127,6 +163,7 @@ void activate_context(int context_id){
 	uint8_t command[128];
 	snprintf((char *)command, sizeof(command), "AT+QIACT=%d\r\n", context_id);
 	send_AT_command((char*)command);
+	osDelay(150);
 	receive_response("Activate Context\r\n");
 	char *first_pointer = NULL;
 	char *second_pointer = NULL; 	
@@ -136,20 +173,36 @@ void activate_context(int context_id){
 		receive_response("Check Activate Context\r\n");
 		first_pointer = strstr((char*)response, CHECK_RESPONSE);
 		if(first_pointer != NULL){
-					second_pointer = strstr(first_pointer+1, CHECK_RESPONSE);
+			second_pointer = strstr(first_pointer+1, CHECK_RESPONSE);
 		}
 	}
 }
 
+void check_open_socket_service(){
+	uint8_t command[128];
+	snprintf((char *)command, sizeof(command), "AT+QIOPEN?\r\n");
+	send_AT_command((char*)command);
+	receive_response("CHECK Activate CONTEXT");
+}
 
-
-void open_socket_service(int context_id, int connect_id, char *service_type, char *ip_address, int remote_port, int local_port, int access_mode){
+int open_socket_service(int context_id, int connect_id, char *service_type, char *ip_address, int remote_port, int local_port, int access_mode){
 	uint8_t command[256];
 	snprintf((char *)command, sizeof(command), "AT+QIOPEN=%d, %d,\"%s\",\"%s\",%d,%d,%d",context_id, connect_id, service_type, ip_address, remote_port, local_port, access_mode);
 	send_AT_command((char *) command);
+	char *first_pointer = NULL;
+	//time_t start = time(NULL);
+	uart_transmit_string(&huart1, (uint8_t *) "Ini start TIME");
+	while(first_pointer == NULL){
+		receive_response("Check OPEN socket service: \r\n");
+		first_pointer = strstr((char*)response, CHECK_RESPONSE);
+	}
+	if(first_pointer != NULL)
+		return 1;
+	else return 0;
 }
 
 
+	
 void StartGSM(void const * argument)
 {
 	uart_transmit_string(&huart1, (uint8_t*)"Starting GSM pushing GPS to Server");
@@ -182,21 +235,33 @@ void StartGSM(void const * argument)
 					check_SIM_ready();
 					osDelay(150);
 					process++;
+					break;
 			case 2: 
 				// Configure the PDP context
 					configure_APN(1);
 					process++;
 					memset(response, 0x00, 128);
 					SIM_UART_ReInitializeRxDMA();
+					break;
 			case 3: 
 				//Activate the PDP context. 
-					uart_transmit_string(&huart1, (uint8_t *)"Inside process 3");
+					uart_transmit_string(&huart1, (uint8_t *)"Inside process 3\r\n");
 					activate_context(1);
 					osDelay(200);
 					process++;
+					memset(response, 0x00, 128);
+					SIM_UART_ReInitializeRxDMA();
 					break;
 			case 4: 
-					uart_transmit_string(&huart1, (uint8_t *)"Inside process 4");
+					//Open socket service
+					uart_transmit_string(&huart1, (uint8_t *)"Inside process 4\r\n");
+					int received_res = open_socket_service(1, 2, SERVICE_TYPE, IP_ADDRESS, REMOTE_PORT, 0, 0);
+					if(received_res) uart_transmit_string(&huart1, (uint8_t*) "Connect to Server successfully");
+					else uart_transmit_string(&huart1, (uint8_t*) "Connect to Server Failed");
+					process++;
+					break;
+			case 5:
+					uart_transmit_string(&huart1, (uint8_t *)"Inside process 5\r\n");
 					break;
 		}
 //		if(first_check == 0){
