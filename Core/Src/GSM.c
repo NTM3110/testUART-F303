@@ -23,13 +23,6 @@ void SIM_UART_ReInitializeRxDMA(void){
 	RingBufferDmaU8_initUSARTRx(&SIMRxDMARing, &huart3, response, SIM_RESPONSE_MAX_SIZE);
 }
 
-void deactivate_context(int context_id){
-	uint8_t command[128];
-	snprintf((char *)command, sizeof(command), "AT+QIDEACT=%d\r\n", context_id);
-	send_AT_command((char*)command);
-	receive_response("DEACTIVATE CONTEXT");
-	osDelay(100);
-}
 
 void receive_response(char *cmd_str) {
 		uint8_t output_buffer[128];
@@ -48,7 +41,7 @@ void receive_response(char *cmd_str) {
 //			}
 //			else is_activated = 1;
 //		}
-		//memset(response, 0x00, 128);
+		//memset(response, 0x00, SIM_RESPONSE_MAX_SIZE);
 		//SIM_UART_ReInitializeRxDMA();
 }
 
@@ -61,6 +54,15 @@ void init_SIM_module() {
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_1, GPIO_PIN_SET);
 }
 
+void reboot_SIM_module(){
+	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_1, GPIO_PIN_RESET);
+	osDelay(1500);
+	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_1, GPIO_PIN_SET);
+	osDelay(2000);
+	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_1, GPIO_PIN_RESET);
+	osDelay(1500);
+	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_1, GPIO_PIN_SET);
+}
 int first_check_SIM(){
 		const char *substring = "READY";
 		int receive_OK = 0;
@@ -69,7 +71,7 @@ int first_check_SIM(){
 			send_AT_command("AT\r\n");
 			receive_response("First check SIM MODULE\n");
 			osDelay(100);
-			memset(response, 0x00, 128);
+			memset(response, 0x00, SIM_RESPONSE_MAX_SIZE);
 			SIM_UART_ReInitializeRxDMA();
 			receive_OK = 1;
 		}
@@ -78,49 +80,87 @@ int first_check_SIM(){
 
 int check_SIM_ready(){
 		const int TIME_LIMIT = 20;
+		int count_check_sim = 0;
 	 // Check if SIM is ready
 		send_AT_command("AT+CPIN?\r\n");
 		osDelay(100);
 		while(strstr((char *) response, "PB DONE") == NULL){
 			receive_response("Check SIM\n");
+			count_check_sim++;
+			if (count_check_sim >= TIME_LIMIT){
+				return 0;
+			}
 		}
 		receive_response("Check SIM\n");
+		count_check_sim = 0;
 		osDelay(100);
-		memset(response, 0x00, 128);
+		memset(response, 0x00, SIM_RESPONSE_MAX_SIZE);
 		SIM_UART_ReInitializeRxDMA();
 		osDelay(100);
 		
+		//GET SIM CCID
 		send_AT_command("AT+QCCID\r\n");
 		while(strstr((char *) response, "+QCCID:") == NULL){
 			receive_response("Check SIM CCID\n");
 		}
 		osDelay(100);
-		memset(response, 0x00, 128);
+		memset(response, 0x00, SIM_RESPONSE_MAX_SIZE);
 		SIM_UART_ReInitializeRxDMA();
 		
+		//GET IMEI
+		send_AT_command("AT+CGSN=1\r\n");
+		while(strstr((char *) response, CHECK_RESPONSE) == NULL){
+			receive_response("Check IMEI\n");
+		}
+		osDelay(100);
+		memset(response, 0x00, SIM_RESPONSE_MAX_SIZE);
+		SIM_UART_ReInitializeRxDMA();
+		
+		// Configuring Network Registration Status (CS Service)
 		send_AT_command("AT+CREG=1\r\n");
-		while(strstr((char *) response, CHECK_RESPONSE) == NULL){
-			receive_response("SET Network Registration Status (CS service)\n");
-		}
-		
-		send_AT_command("AT+CREG?\r\n");
-		while(strstr((char *) response, "+CREG:") == NULL){
-			receive_response("Check Network Registration Status (CS service)\n");
+		char *first_pointer = NULL;
+		char *second_pointer = NULL; 	
+		receive_response("Configuring Network Registration Status (CS Service)");
+		while (first_pointer == NULL || second_pointer == NULL){
+			send_AT_command("AT+CREG?\r\n");
+			osDelay(150);
+			receive_response("Check Network Registration Status (CS Service)\n");
+			osDelay(300);
+			first_pointer = strstr((char*)response, CHECK_RESPONSE);
+			if(first_pointer != NULL){
+						second_pointer = strstr(first_pointer+1, CHECK_RESPONSE);
+			}
 		}
 		osDelay(100);
-		memset(response, 0x00, 128);
+		memset(response, 0x00, SIM_RESPONSE_MAX_SIZE);
+		SIM_UART_ReInitializeRxDMA();
+	
+		//Configuring Network Registration Status (PS Service)
+		send_AT_command("AT+CGREG=1\r\n");
+		first_pointer = NULL;
+		second_pointer = NULL;
+		receive_response("Configuring Network Registration Status (PS Service)");
+		while (first_pointer == NULL || second_pointer == NULL){
+			send_AT_command("AT+CGREG?\r\n");
+			osDelay(150);
+			receive_response("Check Network Registration Status (PS Service)\n");
+			osDelay(300);
+			first_pointer = strstr((char*)response, CHECK_RESPONSE);
+			if(first_pointer != NULL){
+						second_pointer = strstr(first_pointer+1, CHECK_RESPONSE);
+			}
+		}
+		osDelay(100);
+		memset(response, 0x00, SIM_RESPONSE_MAX_SIZE);
 		SIM_UART_ReInitializeRxDMA();
 		
-		send_AT_command("AT+CGREG=1\r\n");
+			//GET IMEI
+		send_AT_command("AT+CSQ\r\n");
 		while(strstr((char *) response, CHECK_RESPONSE) == NULL){
-			receive_response("SET Network Registration Status (PS service)\n");
-		}
-		send_AT_command("AT+CGREG?\r\n");
-		while(strstr((char *) response, "+CGREG:") == NULL){
-			receive_response("Check Network Registration Status (PS Service)\n");
+			receive_response("Check Signal Quality Report\n");
 		}
 		osDelay(100);
-		memset(response, 0x00, 128);
+		memset(response, 0x00, SIM_RESPONSE_MAX_SIZE);
 		SIM_UART_ReInitializeRxDMA();
 		
 		return 1;
@@ -143,7 +183,6 @@ int configure_APN(int context_id){
 	while (first_pointer == NULL || second_pointer == NULL){
 		check_configure_APN();
 		osDelay(300);
-		receive_response("Check Configuring APN\n");
 		first_pointer = strstr((char*)response, CHECK_RESPONSE);
 		if(first_pointer != NULL){
 					second_pointer = strstr(first_pointer+1, CHECK_RESPONSE);
@@ -178,6 +217,35 @@ void activate_context(int context_id){
 	}
 }
 
+int deactivate_context(int context_id){
+	uint8_t command[128];
+	int count_error = 0;
+	osDelay(100);
+	while(strstr((char *) response, CHECK_RESPONSE) == NULL){
+			snprintf((char *)command, sizeof(command), "AT+QIDEACT=%d\r\n", context_id);
+			send_AT_command((char*)command);
+			receive_response("DEACTIVATE CONTEXT");
+			if (strstr((char *) response, "ERROR") != NULL){
+				count_error++;
+				memset(response, 0x00, SIM_RESPONSE_MAX_SIZE);
+				SIM_UART_ReInitializeRxDMA();
+			}
+			if (count_error >= 5){
+				uart_transmit_string(&huart1,(uint8_t*) "Rebooting SIM module");
+				reboot_SIM_module();
+				memset(response, 0x00, SIM_RESPONSE_MAX_SIZE);
+				SIM_UART_ReInitializeRxDMA();
+				return 0;
+			}
+	}
+	count_error = 0;
+	receive_response("DEACTIVATE CONTEXT");
+	osDelay(100);
+	memset(response, 0x00, SIM_RESPONSE_MAX_SIZE);
+	SIM_UART_ReInitializeRxDMA();
+	return 1;
+}
+
 void check_open_socket_service(){
 	uint8_t command[128];
 	snprintf((char *)command, sizeof(command), "AT+QIOPEN?\r\n");
@@ -185,24 +253,77 @@ void check_open_socket_service(){
 	receive_response("CHECK Activate CONTEXT");
 }
 
-int open_socket_service(int context_id, int connect_id, char *service_type, char *ip_address, int remote_port, int local_port, int access_mode){
+int open_socket_service(int context_id, int connect_id, int local_port, int access_mode){
+	const int timeout_seconds = 150; // Receive response each second 
+	int elapsed_time_ms = 0;
 	uint8_t command[256];
-	snprintf((char *)command, sizeof(command), "AT+QIOPEN=%d, %d,\"%s\",\"%s\",%d,%d,%d",context_id, connect_id, service_type, ip_address, remote_port, local_port, access_mode);
+	snprintf((char *)command, sizeof(command), "AT+QIOPEN=%d,%d,\"%s\",\"%s\",%d,%d,%d\r\n",context_id, connect_id, SERVICE_TYPE, IP_ADDRESS, REMOTE_PORT, local_port, access_mode);
 	send_AT_command((char *) command);
+	osDelay(100);
 	char *first_pointer = NULL;
 	//time_t start = time(NULL);
 	uart_transmit_string(&huart1, (uint8_t *) "Ini start TIME");
-	while(first_pointer == NULL){
+	while(first_pointer == NULL && elapsed_time_ms < timeout_seconds){
+		char output_elapsed[128];
 		receive_response("Check OPEN socket service: \r\n");
-		first_pointer = strstr((char*)response, CHECK_RESPONSE);
+		first_pointer = strstr((char*)response, "+QIOPEN:");
+		elapsed_time_ms++;
+		snprintf(output_elapsed, 128, "Elapsed Time: %d", elapsed_time_ms);
+		uart_transmit_string(&huart1, (uint8_t *)output_elapsed);
 	}
+	receive_response("Check OPEN socket service: \r\n");
+	memset(response, 0x00, SIM_RESPONSE_MAX_SIZE);
+	SIM_UART_ReInitializeRxDMA();
+	
 	if(first_pointer != NULL)
+	{
+		send_AT_command("AT+QISTATE=1,0\r\n");
+		while(strstr((char *) response, CHECK_RESPONSE) == NULL){
+			receive_response("Check SOCKET CONNECTION\n");
+		}
+		osDelay(100);
+		memset(response, 0x00, SIM_RESPONSE_MAX_SIZE);
+		SIM_UART_ReInitializeRxDMA();
 		return 1;
+	}
 	else return 0;
 }
 
+void send_data_to_server(int connect_id, char* message){
+	uint8_t command[256];
+	snprintf((char *)command, sizeof(command), "AT+QISENDEX=%d,\"%s\"\r\n", connect_id, message);
+	send_AT_command((char*)command);
+	while(strstr((char *) response, CHECK_RESPONSE) == NULL){
+			receive_response("Check sending to server\n");
+	}
+	osDelay(100);
+//	memset(response, 0x00, SIM_RESPONSE_MAX_SIZE);
+//	SIM_UART_ReInitializeRxDMA();
+}
 
-	
+void check_data_sent_to_server(int connect_id){
+	uint8_t command[256];
+	snprintf((char *)command, sizeof(command), "AT+QISEND=%d,0\r\n", connect_id);
+	send_AT_command((char*)command);
+	while(strstr((char *) response, CHECK_RESPONSE) == NULL){
+			receive_response("Check sending to server\n");
+	}
+	osDelay(100);
+	memset(response, 0x00, SIM_RESPONSE_MAX_SIZE);
+	SIM_UART_ReInitializeRxDMA();
+}
+void close_connection(int connect_id){
+	uint8_t command[256];
+	snprintf((char *)command, sizeof(command), "AT+QICLOSE=%d\r\n", connect_id);
+	send_AT_command((char*)command);
+	while(strstr((char *) response, CHECK_RESPONSE) == NULL){
+			receive_response("Check CLOSING to server\n");
+	}
+	receive_response("Check CLOSING to server\n");
+	osDelay(100);
+	memset(response, 0x00, SIM_RESPONSE_MAX_SIZE);
+	SIM_UART_ReInitializeRxDMA();
+}
 void StartGSM(void const * argument)
 {
 	uart_transmit_string(&huart1, (uint8_t*)"Starting GSM pushing GPS to Server");
@@ -232,15 +353,25 @@ void StartGSM(void const * argument)
 			case 1:
 				// Check status of SIM. Wait until SIM is ready 
 					osDelay(100);
-					check_SIM_ready();
+					int check_SIM = check_SIM_ready();
 					osDelay(150);
-					process++;
+					if (check_SIM == 0){
+						memset(response, 0x00, SIM_RESPONSE_MAX_SIZE);
+						SIM_UART_ReInitializeRxDMA();
+						uart_transmit_string(&huart1,(uint8_t*) "Rebooting SIM module");
+						reboot_SIM_module();
+						
+						process = 0;
+					}
+					else process++;
 					break;
 			case 2: 
 				// Configure the PDP context
+					memset(response, 0x00, SIM_RESPONSE_MAX_SIZE);
+					SIM_UART_ReInitializeRxDMA();
 					configure_APN(1);
 					process++;
-					memset(response, 0x00, 128);
+					memset(response, 0x00, SIM_RESPONSE_MAX_SIZE);
 					SIM_UART_ReInitializeRxDMA();
 					break;
 			case 3: 
@@ -249,20 +380,38 @@ void StartGSM(void const * argument)
 					activate_context(1);
 					osDelay(200);
 					process++;
-					memset(response, 0x00, 128);
+					memset(response, 0x00, SIM_RESPONSE_MAX_SIZE);
 					SIM_UART_ReInitializeRxDMA();
 					break;
 			case 4: 
 					//Open socket service
 					uart_transmit_string(&huart1, (uint8_t *)"Inside process 4\r\n");
-					int received_res = open_socket_service(1, 2, SERVICE_TYPE, IP_ADDRESS, REMOTE_PORT, 0, 0);
-					if(received_res) uart_transmit_string(&huart1, (uint8_t*) "Connect to Server successfully");
-					else uart_transmit_string(&huart1, (uint8_t*) "Connect to Server Failed");
-					process++;
+					int received_res = open_socket_service(1, 0, 0, 0);
+					if(received_res){
+						uart_transmit_string(&huart1, (uint8_t*) "Connect to Server successfully\n");
+						process++;
+					}
+					else 
+					{
+						uart_transmit_string(&huart1, (uint8_t*) "Connect to Server Failed\n");
+						int receive_deactivate = deactivate_context(1);
+						if (receive_deactivate) process = 1;
+						else process = 0;
+					}
 					break;
 			case 5:
 					uart_transmit_string(&huart1, (uint8_t *)"Inside process 5\r\n");
+					//send_data_to_server(0, "7E0100002D001234567891000300000000000000000041354D00000000000000000000000000000000003536373839312002D4C1413030303030CD7E");
+					process++;
 					break;
+			case 6:
+					uart_transmit_string(&huart1, (uint8_t *)"Inside process 6\r\n");
+					check_data_sent_to_server(0);
+					receive_response("Check terminal register\n");
+					close_connection(0);
+					process = 4;
+					break;
+			
 		}
 //		if(first_check == 0){
 //			first_check_received = first_check_SIM();
