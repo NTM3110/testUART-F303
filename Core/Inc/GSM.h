@@ -47,6 +47,28 @@ typedef struct {
     uint8_t end_mask;
 } JT808_TerminalRegistration;
 
+typedef struct {
+    uint8_t start_mask;                    // 1 byte
+    uint8_t message_type[2];               // 2 bytes
+    uint8_t message_length[2];             // 2 bytes
+    uint8_t terminal_phone_number[6];     // 6 bytes
+    uint8_t terminal_serial_number[2];      //2 bytes
+    uint8_t alarm[4];                      // 4 bytes
+    uint8_t status[4];                     // 4 bytes
+    uint8_t latitude[4];                   // 4 bytes (32-bit integer)
+    uint8_t longitude[4];                  // 4 bytes (32-bit integer)
+    uint8_t altitude[2];                   // 2 bytes (16-bit integer)
+    uint8_t speed[2];                      // 2 bytes
+    uint8_t direction[2];                  // 2 bytes
+    uint8_t timestamp[6];                  // 6 bytes
+    uint8_t mileage[6];                    // 6 bytes
+    uint8_t oil[2];                      // 2 bytes
+    uint8_t driving_record_speed[2];         // 2 bytes
+    uint8_t vehicle_id[3];                 // 3 bytes
+    uint8_t signal[1];
+    uint8_t additional[9];                  // 9 bytes
+    uint8_t end_mask;                      // 1 byte
+} JT808_LocationInfoReport;
 
 extern RTC_HandleTypeDef hrtc;
 

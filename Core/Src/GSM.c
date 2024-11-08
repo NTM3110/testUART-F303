@@ -16,6 +16,33 @@ int is_activated = 0;
 int is_set_time = 0;
 RMCSTRUCT rmc_jt;
 
+JT808_LocationInfoReport create_location_info_report() {
+    JT808_LocationInfoReport location_info = {
+        .start_mask = 0x7E,                    // 7E
+        .message_type = {0x02, 0x00},          // 02 00
+        .message_length = {0x00, 0x32},        // 00 32
+        .terminal_phone_number = {0x00, 0x12, 0x34, 0x56, 0x78, 0x91}, // 00 12 34 56 78 91
+        .terminal_serial_number = {0x00, 0x0A}, // 00 0A
+        .alarm = {0x00, 0x00, 0X00, 0X00},     // 00 00 00 00
+        .status = {0x00, 0x00, 0x00, 0x00},    // 00 00 00 00
+        .latitude = {0x01, 0x40, 0x67, 0x86},  // 01 40 67 86
+        .longitude = {0x06, 0x4E, 0x4C, 0xC4}, // 06 4E 4C C4
+        .altitude = {0x00, 0x00},              // 00 00
+        .speed = {0x00, 0x00},                 // 00 00
+        .direction = {0x00, 0x00},             // 00 00
+        .timestamp = {0x24, 0x11, 0x08, 0x17, 0x20, 0x00}, // 24 11 08 17 10 00
+        .mileage = {0x01, 0x04, 0x00, 0x00, 0x00, 0x00}, // 01 04 00 00 00 00
+        .oil = {0x2A, 0x02},                   // 2A 02
+        .driving_record_speed = {0x00, 0x00},  // 00 00
+        .vehicle_id = {0x30, 0x01, 0x13},      // 30 01 13
+        .signal = {0x31},                      // 31
+        .additional = {0x01, 0x00, 0xFD, 0x04, 0x03, 0xF1, 0x00, 0x00, 0x0A}, // 01 00 FD 04 03 F1 00 00 0A
+        .end_mask = 0x7E                       // 7E
+    };
+    
+    return location_info;
+}
+
 uint8_t calculate_checksum(uint8_t *data, size_t length) {
     uint8_t checksum = 0;
     for (size_t i = 1; i < length - 2; i++) {  // Skip start and end markers
@@ -44,6 +71,18 @@ uint8_t* create_message_array(JT808_TerminalRegistration *reg_msg, size_t *array
     return message_array;
 }
 
+uint8_t *convert_location_info_to_array(JT808_LocationInfoReport *location_info, size_t *array_length) {
+    *array_length = sizeof(JT808_LocationInfoReport);
+    uint8_t *message_array = malloc(*array_length);
+
+    if (message_array == NULL) {
+        return NULL;  // Allocation failed
+    }
+
+    memcpy(message_array, location_info, *array_length);  // Copy struct data into message array
+
+    return message_array;
+}
 
 void send_AT_command(const char *command) {
     HAL_UART_Transmit(&huart3, (uint8_t *)command, strlen(command), HAL_MAX_DELAY);
@@ -143,6 +182,19 @@ void set_date (uint8_t year, uint8_t month, uint8_t date)  // monday = 1
 	HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR1, 0x2345);  // backup register
 }
 
+int convert_dec_to_hex_value(int int_value){
+    return (int_value /10*16) + (int_value%10);
+}
+
+void save_rmc_to_location_info(JT808_LocationInfoReport* location_info){
+	location_info->timestamp[0] = (uint8_t)convert_dec_to_hex_value(rmc_jt.date.Yr);  // Assign year (0x23)
+	location_info->timestamp[1] = (uint8_t)convert_dec_to_hex_value(rmc_jt.date.Mon);          // Assign month (0x11)
+	location_info->timestamp[2] = (uint8_t)convert_dec_to_hex_value(rmc_jt.date.Day);            // Assign day (0x08)
+	location_info->timestamp[3] = (uint8_t)convert_dec_to_hex_value(rmc_jt.tim.hour);           // Assign hour (0x14)
+	location_info->timestamp[4] = (uint8_t)convert_dec_to_hex_value(rmc_jt.tim.min);         // Assign minute (0x55)
+	location_info->timestamp[5] = (uint8_t)convert_dec_to_hex_value(rmc_jt.tim.sec);   
+}
+
 void get_RTC_time_date()
 {
 	uint8_t output_buffer[128];
@@ -172,9 +224,11 @@ void get_RTC_time_date()
 	rmc_jt.tim.min = gTime.Minutes;
 	rmc_jt.tim.sec = gTime.Seconds;
 	
+	//save_rmc_to_location_info(location_info);
 	snprintf((char*)output_buffer, 128, "Time to GMT+8 saved to RMC: 20%02d/%02d/%02d, %02d:%02d:%02d\n", rmc_jt.date.Yr, rmc_jt.date.Mon, rmc_jt.date.Day, rmc_jt.tim.hour, rmc_jt.tim.min, rmc_jt.tim.sec);
 	uart_transmit_string(&huart1, (uint8_t*) output_buffer);
 }
+
 
 void extract_time(uint8_t *message){
     int year, month, day, hour, minute, second;
@@ -473,15 +527,15 @@ void send_data_to_server(int connect_id, uint8_t* message, int message_length){
 	uint8_t command[256];
 	int count_check = 0;
 	check_socket_connection();
-//	char message_hex[512];  // Each byte takes 2 hex chars
+	char message_hex[512];  // Each byte takes 2 hex chars
 
-//	for (int i = 0; i < message_length; i++) {
-//    snprintf(&message_hex[i * 2], 3, "%02X", message[i]);
-//	}
+	for (int i = 0; i < message_length; i++) {
+    snprintf(&message_hex[i * 2], 3, "%02X", message[i]);
+	}
 
-	//snprintf((char *)command, sizeof(command), "AT+QISENDEX=%d,\"%s\"\r\n", connect_id, message_hex);
+	snprintf((char *)command, sizeof(command), "AT+QISENDEX=%d,\"%s\"\r\n", connect_id, message_hex);
 
-	snprintf((char *)command, sizeof(command), "AT+QISENDEX=%d,\"%s\"\r\n", connect_id, message);
+	//snprintf((char *)command, sizeof(command), "AT+QISENDEX=%d,\"%s\"\r\n", connect_id, message);
 	send_AT_command((char*)command);
 	
 	while(strstr((char *) response, CHECK_RESPONSE) == NULL){
@@ -563,10 +617,16 @@ void StartGSM(void const * argument)
         .check_sum = 0x00,  // Placeholder, will be set by the function
         .end_mask = 0x7E
     };
-
+	
+	JT808_LocationInfoReport location_info = create_location_info_report();
+	
 	size_t message_length;
 	uint8_t *message_array = create_message_array(&reg_msg, &message_length);
 	
+	size_t location_report_message_length;
+  uint8_t *location_report_message_array = convert_location_info_to_array(&location_info, &location_report_message_length);
+	
+		
 	init_SIM_module();
 	int isReady = 0;
 	int process = 0;
@@ -636,7 +696,7 @@ void StartGSM(void const * argument)
 					break;
 			case 5:
 					uart_transmit_string(&huart1, (uint8_t *)"Inside process: Register/Login to the server.\r\n");
-					send_data_to_server(0,(uint8_t*)TERMINAL_REGISTRATION_DEMO, message_length);
+					send_data_to_server(0,message_array, message_length);
 					free(message_array);
 					process++;
 					break;
@@ -653,8 +713,8 @@ void StartGSM(void const * argument)
 						get_RTC_time_date();
 						osDelay(500);
 					}
-					snprintf((char *)output_location, 256, "7E02000032001234567891000A000000000000000001406786064E4CC4000000000000%02d%02d%02d%02d%02d%02d0104000000002A020000300113310100FD0403F100000A7E",rmc_jt.date.Yr, rmc_jt.date.Mon, rmc_jt.date.Day, rmc_jt.tim.hour, rmc_jt.tim.min, rmc_jt.tim.sec);
-					send_data_to_server(0, output_location,0);
+					//snprintf((char *)output_location, 256, "7E02000032001234567891000A000000000000000001406786064E4CC4000000000000%02d%02d%02d%02d%02d%02d0104000000002A020000300113310100FD0403F100000A7E",rmc_jt.date.Yr, rmc_jt.date.Mon, rmc_jt.date.Day, rmc_jt.tim.hour, rmc_jt.tim.min, rmc_jt.tim.sec);
+					send_data_to_server(0, location_report_message_array ,location_report_message_length);
 					process++;
 					break;
 			case 8:
