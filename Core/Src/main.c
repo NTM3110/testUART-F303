@@ -51,6 +51,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+RTC_HandleTypeDef hrtc;
+
 SPI_HandleTypeDef hspi1;
 
 UART_HandleTypeDef huart1;
@@ -78,6 +80,7 @@ static void MX_USART1_UART_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_USART3_UART_Init(void);
+static void MX_RTC_Init(void);
 void StartDefaultTask(void const * argument);
 void StartControllingLED(void const * argument);
 void StartUART1(void const * argument);
@@ -127,6 +130,7 @@ int main(void)
   MX_SPI1_Init();
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
+  MX_RTC_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -147,33 +151,33 @@ int main(void)
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
 
-//  /* Create the thread(s) */
-//  /* definition and creation of defaultTask */
-//  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
-//  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+  /* Create the thread(s) */
+//	/* definition and creation of defaultTask */
+//	osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+//	defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
-//  /* definition and creation of ControllingLED */
-//  osThreadDef(ControllingLED, StartControllingLED, osPriorityIdle, 0, 128);
-//  ControllingLEDHandle = osThreadCreate(osThread(ControllingLED), NULL);
+//	/* definition and creation of ControllingLED */
+//	osThreadDef(ControllingLED, StartControllingLED, osPriorityIdle, 0, 128);
+//	ControllingLEDHandle = osThreadCreate(osThread(ControllingLED), NULL);
 
-//  /* definition and creation of UART1 */
-//  osThreadDef(UART1, StartUART1, osPriorityIdle, 0, 128);
-//  UART1Handle = osThreadCreate(osThread(UART1), NULL);
+//	/* definition and creation of UART1 */
+//	osThreadDef(UART1, StartUART1, osPriorityIdle, 0, 128);
+//	UART1Handle = osThreadCreate(osThread(UART1), NULL);
 
-//  /* definition and creation of SpiFlash */
-//  osThreadDef(SpiFlash, StartSpiFlash, osPriorityIdle, 0, 1024);
-//  SpiFlashHandle = osThreadCreate(osThread(SpiFlash), NULL);
+//	/* definition and creation of SpiFlash */
+//	osThreadDef(SpiFlash, StartSpiFlash, osPriorityIdle, 0, 1024);
+//	SpiFlashHandle = osThreadCreate(osThread(SpiFlash), NULL);
 
-//  /* definition and creation of GPS */
-//  osThreadDef(GPS, StartGPS, osPriorityIdle, 0, 640);
-//  GPSHandle = osThreadCreate(osThread(GPS), NULL);
+//	/* definition and creation of GPS */
+//	osThreadDef(GPS, StartGPS, osPriorityIdle, 0, 640);
+//	GPSHandle = osThreadCreate(osThread(GPS), NULL);
 
-//  /* definition and creation of RFID */
-//  osThreadDef(RFID, StartRFID, osPriorityIdle, 0, 128);
-//  RFIDHandle = osThreadCreate(osThread(RFID), NULL);
+//	/* definition and creation of RFID */
+//	osThreadDef(RFID, StartRFID, osPriorityIdle, 0, 128);
+//	RFIDHandle = osThreadCreate(osThread(RFID), NULL);
 
   /* definition and creation of GSM */
-  osThreadDef(GSM, StartGSM, osPriorityIdle, 0, 512);
+  osThreadDef(GSM, StartGSM, osPriorityIdle, 0, 640);
   GSMHandle = osThreadCreate(osThread(GSM), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -206,10 +210,16 @@ void SystemClock_Config(void)
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
+  /** Configure LSE Drive Capability
+  */
+  HAL_PWR_EnableBkUpAccess();
+  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_LOW);
+
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSE;
+  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
@@ -232,14 +242,78 @@ void SystemClock_Config(void)
     Error_Handler();
   }
   PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_USART2
-                              |RCC_PERIPHCLK_USART3;
+                              |RCC_PERIPHCLK_USART3|RCC_PERIPHCLK_RTC;
   PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
   PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
   PeriphClkInit.Usart3ClockSelection = RCC_USART3CLKSOURCE_PCLK1;
+  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief RTC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_RTC_Init(void)
+{
+
+  /* USER CODE BEGIN RTC_Init 0 */
+
+  /* USER CODE END RTC_Init 0 */
+
+  RTC_TimeTypeDef sTime = {0};
+  RTC_DateTypeDef sDate = {0};
+
+  /* USER CODE BEGIN RTC_Init 1 */
+
+  /* USER CODE END RTC_Init 1 */
+
+  /** Initialize RTC Only
+  */
+  hrtc.Instance = RTC;
+  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+  hrtc.Init.AsynchPrediv = 127;
+  hrtc.Init.SynchPrediv = 255;
+  hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+  hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+  hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+  if (HAL_RTC_Init(&hrtc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /* USER CODE BEGIN Check_RTC_BKUP */
+
+  /* USER CODE END Check_RTC_BKUP */
+
+  /** Initialize RTC and set the Time and Date
+  */
+  sTime.Hours = 0x0;
+  sTime.Minutes = 0x0;
+  sTime.Seconds = 0x0;
+  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  sTime.StoreOperation = RTC_STOREOPERATION_RESET;
+  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sDate.WeekDay = RTC_WEEKDAY_FRIDAY;
+  sDate.Month = RTC_MONTH_NOVEMBER;
+  sDate.Date = 0x8;
+  sDate.Year = 0x24;
+
+  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN RTC_Init 2 */
+
+  /* USER CODE END RTC_Init 2 */
+
 }
 
 /**
@@ -468,25 +542,6 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
-
-/* USER CODE BEGIN Header_StartDefaultTask */
-/**
-  * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used
-  * @retval None
-  */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void const * argument)
-{
-  /* USER CODE BEGIN 5 */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END 5 */
-}
-
 
 /**
   * @brief  Period elapsed callback in non blocking mode

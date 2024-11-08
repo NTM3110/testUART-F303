@@ -220,7 +220,7 @@ void StartGPS(void const * argument)
   while(1)
   {
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
-		osDelay(1000);
+		HAL_Delay(1000);
 		//HAL_UART_Transmit(&huart1, (uint8_t *)"GPS Received:\n", strlen("GPS Received:\n"), 1000);
 		//HAL_UART_Transmit(&huart1, gpsSentence, GPS_STACK_SIZE, 1000);	
 		//HAL_UART_Transmit(&huart1, (uint8_t *)"\n", strlen("\n"), 1000);
@@ -229,7 +229,7 @@ void StartGPS(void const * argument)
 //		rmc.tim.sec+=2;
 		HAL_UART_Transmit(&huart1, (uint8_t *)"Getting GPS \n", strlen("Getting GPS \n"), 1000);
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
-		osDelay(1000);
+		HAL_Delay(1000);
   }
   /* USER CODE END StartGPS */
 }

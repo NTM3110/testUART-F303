@@ -4,7 +4,7 @@
 #include "main.h"
 #include "RS232-UART1.h"
 
-#define SIM_RESPONSE_MAX_SIZE				256
+#define SIM_RESPONSE_MAX_SIZE				384
 #define SIM_GPIO_Port								GPIOC
 #define SIM_GPIO_PWR_CTRL_Pin				GPIO_PIN_0
 
@@ -16,7 +16,39 @@
 #define IP_ADDRESS									"142.4.205.26"
 #define REMOTE_PORT									5015
 #define CHECK_RESPONSE							"OK"
+//#define TERMINAL_REGISTRATION_DEMO 	"7E0100002D001234567891000300000000000000000041354D00000000000000000000000000000000003536373839312002D4C1413030303030CD7E"
+#define TERMINAL_REGISTRATION_DEMO 		"7E0100002D001234567891000300000000000000000041354D00000000000000000000000000000000003536373839312002D4C1413030303030CD7E"
+//"7E 0100 002D 001234567891 0003 0000 0000 0000000000 41354D0000000000 00000000000000 00   00 00 00 00 35 36 37 38 39 31 20 02 D4 C1 41 30 30 30 30 30 CD7E"
 
+
+//COMMAND AT
+#define FIRST_CHECK									"AT\r\n"
+#define CHECK_SIM_READY							"AT+CPIN?\r\n"
+#define GET_SIM_CCID								"AT+QCCID\r\n"
+
+
+
+// JT808 MESSAGE STRUCT
+#define PLATE_NO_LEN 20
+typedef struct {
+    uint8_t start_mask;
+    uint8_t message_type[2];
+    uint8_t message_length[2];
+    uint8_t terminal_phone_number[6];
+    uint8_t message_serial_number[2];
+    uint8_t province_ID[2];
+    uint8_t city_ID[2];
+    uint8_t manufacturer_ID[5];
+    uint8_t terminal_type[8];
+    uint8_t terminal_ID[7];
+    uint8_t plate_color;
+    uint8_t plate_no[PLATE_NO_LEN];
+    uint8_t check_sum;
+    uint8_t end_mask;
+} JT808_TerminalRegistration;
+
+
+extern RTC_HandleTypeDef hrtc;
 
 #define SIM_ENABLE()   HAL_GPIO_WritePin(SIM_GPIO_Port, SIM_GPIO_PWR_CTRL_Pin, GPIO_PIN_SET)
 #define SIM_DISABLE()  HAL_GPIO_WritePin(SIM_GPIO_Port, SIM_GPIO_PWR_CTRL_Pin	, GPIO_PIN_RESET)
